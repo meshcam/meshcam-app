@@ -1,0 +1,250 @@
+{
+  "buck-frost-far.jpg": {
+    "title": "Whitetail deer buck",
+    "creator": "YellowstoneNPS",
+    "license": "pdm",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source": "https://www.flickr.com/photos/80223459@N05/38703966621",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "buck-frost-near.jpg": {
+    "title": "Whitetail deer buck",
+    "creator": "YellowstoneNPS",
+    "license": "pdm",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source": "https://www.flickr.com/photos/80223459@N05/24831162948",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "buck-velvet-grass.jpg": {
+    "title": "Odocoileus virginianus (white-tailed deer) (Newark, Ohio, USA) 10",
+    "creator": "James St. John",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/47445767@N05/8270245832",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "buck-velvet-pines.jpg": {
+    "title": "White-tailed deer (Odocoileus virginianus)",
+    "creator": "GlacierNPS",
+    "license": "pdm",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source": "https://www.flickr.com/photos/43288043@N04/51326841831",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-deer-woods.jpg": {
+    "title": "Young Buck",
+    "creator": "Lisa Zins",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/94846844@N04/19507932120",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-bucks-sparring.jpg": {
+    "title": "Trail Camera - Backyard",
+    "creator": "Larry Lamsa",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/22191277@N03/51888328232",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-deer-pond.jpg": {
+    "title": "Trail Camera - Backyard",
+    "creator": "Larry Lamsa",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/22191277@N03/51889945675",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "fawn-grazing.jpg": {
+    "title": "White-Tailed Deer Fawn",
+    "creator": "ShenandoahNPS",
+    "license": "pdm",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source": "https://www.flickr.com/photos/67015038@N06/9600041554",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "fawns-creek.jpg": {
+    "title": "White tailed deer fawns Lacreek NWR 01",
+    "creator": "USFWS Mountain Prairie",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/51986662@N05/14285645404",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "red-fox.jpg": {
+    "title": "Red fox forest",
+    "creator": null,
+    "license": "cc0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/6034073/red-fox-forest-free-public-domain-cc0-image",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "coyote-pounce.jpg": {
+    "title": "Coyote Pounce",
+    "creator": "JustinJensen",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/40845011@N03/4453887453",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "raccoon-fence.jpg": {
+    "title": "Raccoon",
+    "creator": "Photo Cindy",
+    "license": "cc0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.flickr.com/photos/13631562@N00/4301171521",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-raccoons.jpg": {
+    "title": "Sharing the Watering Hole",
+    "creator": "jurvetson",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/44124348109@N01/3898650973",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "turkeys-trail.jpg": {
+    "title": "Wild Turkey - Meleagris gallopavo, Occoquan Bay National Wildlife Refuge, Woodbridge, Virginia",
+    "creator": "Judy Gallagher",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/52450054@N04/24350524238",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "turkey-tom.jpg": {
+    "title": "Wild Turkey",
+    "creator": "ZionNPS",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/54168808@N03/6384983627",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "black-bear.jpg": {
+    "title": "Cinnamon black bear near Mammoth Hot Springs",
+    "creator": "YellowstoneNPS",
+    "license": "pdm",
+    "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+    "source": "https://www.flickr.com/photos/80223459@N05/30167563368",
+    "modified": "resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-raccoon-forage.jpg": {
+    "title": "trailcam: raccoon",
+    "creator": "pmuellr",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/pmuellr/45384348002",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-doe-stare.jpg": {
+    "title": "trailcam: deer",
+    "creator": "pmuellr",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/pmuellr/45436250841",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-rabbits.jpg": {
+    "title": "trailcam: evil rabbit",
+    "creator": "pmuellr",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/pmuellr/45436251531",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-possum-tail.jpg": {
+    "title": "trailcam: possum tail",
+    "creator": "pmuellr",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/pmuellr/45436251141",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-raccoon-stand.jpg": {
+    "title": "raccoon",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6492408251",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "raccoon-pair.jpg": {
+    "title": "raccoons",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6659381151",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "coyote-fall.jpg": {
+    "title": "coyote",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6659380939",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-skunk-tail.jpg": {
+    "title": "skunk",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6492408391",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "skunk-day.jpg": {
+    "title": "striped skunk",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6659381729",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "turkey-flock.jpg": {
+    "title": "wild turkey flock",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/7000601868",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "bobcat-pair.jpg": {
+    "title": "bobcat pair",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6659379901",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "squirrel-dash.jpg": {
+    "title": "fox squirrel and scrub jay",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/6492410089",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-buck-walk.jpg": {
+    "title": "black-tailed buck by night",
+    "creator": "USFWS Headquarters",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/usfwshq/7000602924",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-coyote-night.jpg": {
+    "title": "SK - Coyote at the camera trap",
+    "creator": "Virginia State Parks",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/virginiastateparks/5447687579",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  },
+  "ir-fox-orchard.jpg": {
+    "title": "renard trailcam fox",
+    "creator": "jano71",
+    "license": "by",
+    "license_url": "https://creativecommons.org/licenses/by/2.0/",
+    "source": "https://www.flickr.com/photos/jano71/21135532402",
+    "modified": "cropped/resized; trail-camera look applied (tone/grain/IR treatment, OSD info bar)"
+  }
+}

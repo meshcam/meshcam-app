@@ -1,0 +1,45 @@
+# MeshCam app — self-host quickstart.
+#   docker compose up --build   →  http://localhost:8000
+#
+# This runs the whole backend: FastAPI app + MinIO for photo storage, SQLite
+# for the database (swap TRAILCAM_DATABASE_URL / TRAILCAM_DB_* for Postgres in
+# real deployments). Human login is OIDC — point TRAILCAM_OIDC_* at your IdP
+# (Authentik, Authelia, Keycloak, ...). For a quick look WITHOUT an IdP, the
+# dev-only eval login is enabled below; NEVER expose it beyond localhost.
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      TRAILCAM_ENV: dev                      # dev unlocks the eval login below
+      TRAILCAM_SCREENSHOT_LOGIN: "1"         # REMOVE for any real deployment
+      TRAILCAM_PUBLIC_URL: http://localhost:8000
+      TRAILCAM_DATABASE_URL: sqlite+aiosqlite:////data/meshcam.db
+      TRAILCAM_S3_ENDPOINT: http://minio:9000
+      TRAILCAM_S3_REGION: us-east-1
+      TRAILCAM_S3_BUCKET: trailcam
+      TRAILCAM_S3_ACCESS_KEY: meshcam
+      TRAILCAM_S3_SECRET_KEY: meshcam-dev-secret
+      # Real login (then delete the two dev lines above):
+      # TRAILCAM_OIDC_ISSUER: https://auth.example.com
+      # TRAILCAM_OIDC_CLIENT_ID: meshcam
+      # TRAILCAM_OIDC_CLIENT_SECRET: ...
+      # TRAILCAM_SESSION_SECRET: <openssl rand -hex 32>
+    volumes: ["appdata:/data"]
+    depends_on: [minio, minio-init]
+  minio:
+    image: quay.io/minio/minio
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: meshcam
+      MINIO_ROOT_PASSWORD: meshcam-dev-secret
+    volumes: ["miniodata:/data"]
+  minio-init:
+    image: quay.io/minio/mc
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "until mc alias set m http://minio:9000 meshcam meshcam-dev-secret; do sleep 1; done;
+      mc mb -p m/trailcam; exit 0"
+volumes:
+  appdata:
+  miniodata:
