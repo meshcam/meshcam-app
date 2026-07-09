@@ -2,8 +2,15 @@
 
 Early days — issues, bug reports, and field results are as valuable as code.
 
-- **Bugs / questions** → GitHub Issues or Discussions.
-- **Small PRs** (fixes, docs, tests) → welcome directly.
+MeshCam is developed on a private tree and released here in batches — this
+GitHub repo is the canonical public mirror, and releases land as squashed
+commits. This keeps the public history readable and keeps review bandwidth
+for humans (unsolicited bulk or AI-generated PRs will be closed unread).
+
+- **Bugs / questions / field reports** → GitHub Issues or Discussions —
+  actively watched; this is the front door.
+- **Small obvious fixes** → a PR is fine; it may be applied to the private
+  tree and credited in release notes rather than merged directly.
 - **Big changes** → open an issue first so we agree on direction before you
   invest the time.
 - **CLA**: code contributions require signing a lightweight Contributor
