@@ -15,7 +15,7 @@ never a lock-in.
   progress from telemetry).
 - **Ingest API** — idempotent, store-and-forward-friendly; devices are
   first-class via the open spec
-  ([meshcam-api](https://github.com/getmeshcam/meshcam-api)). Sites and
+  ([meshcam-api](https://github.com/meshcam/meshcam-api)). Sites and
   cameras auto-create on first contact — the mesh adds itself.
 - **Node health** — per-node battery (LiFePO4-aware coloring), RSSI/SNR,
   temperature charts; OK/Quiet/Dark status from last-seen.

@@ -1,7 +1,7 @@
 [project]
 name = "trailcam"
 version = "0.1.0"
-description = "Trail-cam mesh backend — ingest, gallery, retention (trailcam.fuhry.app)"
+description = "MeshCam backend — ingest, gallery, retention"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115",
