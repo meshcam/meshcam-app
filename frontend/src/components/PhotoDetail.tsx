@@ -496,7 +496,7 @@ export default function PhotoDetail({
               {fullReq.status === 'delivered' && !transferring && !reassembling && (
                 <li className="step-wait">
                   <Clock size={13} aria-hidden="true" />
-                  Relaying to the node — {photo.camera_name} last heard{' '}
+                  Relaying to the node; {photo.camera_name} last heard{' '}
                   {fullReq.node_last_seen_at ? timeAgo(fullReq.node_last_seen_at) : 'never'}
                   {' '}(sleepy nodes answer on their next wake)
                 </li>
@@ -505,20 +505,20 @@ export default function PhotoDetail({
                 <li className="step-wait">
                   <Clock size={13} aria-hidden="true" />
                   {reassembling
-                    ? 'All chunks received — reassembling and uploading'
-                    : `Transferring over the mesh — chunk ${xfer?.chunk} of ${xfer?.chunks}`}
+                    ? 'All chunks received, reassembling and uploading'
+                    : `Transferring over the mesh: chunk ${xfer?.chunk} of ${xfer?.chunks}`}
                 </li>
               )}
               {fullReq.status === 'failed' && (
                 <li className="step-fail">
                   <CircleAlert size={13} aria-hidden="true" />
-                  Failed{fullReq.detail ? `: ${fullReq.detail}` : ''} — you can request again
+                  Failed{fullReq.detail ? ` (${fullReq.detail})` : ''}. You can request again
                 </li>
               )}
               {fullReq.status === 'expired' && (
                 <li className="step-fail">
                   <CircleAlert size={13} aria-hidden="true" />
-                  Expired unanswered after 14 days — you can request again
+                  Expired unanswered after 14 days. You can request again
                 </li>
               )}
             </ol>
@@ -538,11 +538,11 @@ export default function PhotoDetail({
                 </div>
                 <div className="hd-progress-note">
                   {reassembling
-                    ? 'Almost there — the gateway is stitching the chunks together.'
+                    ? 'Almost there: the gateway is stitching the chunks together.'
                     : transferring && xfer?.total
                       ? `${Math.round(transferredBytes / 1024)} of ${Math.round(xfer.total / 1024)} KB` +
                         (etaSeconds != null ? ` · ${minutes(etaSeconds)} to go` : '')
-                      : `Still working — ${QUALITY_LABEL[fullReq.quality] ?? 'this'} pulls over the LoRa mesh ` +
+                      : `Still working: ${QUALITY_LABEL[fullReq.quality] ?? 'this'} pulls over the LoRa mesh ` +
                         `usually take ${QUALITY_ETA[fullReq.quality] ?? 'a few minutes'}. ` +
                         `Elapsed ${elapsedLabel(fullReq.created_at, nowTick)}.`}
                 </div>
@@ -579,8 +579,8 @@ export default function PhotoDetail({
           ) : confirmingMax ? (
             <div className="confirm-group">
               <span className="confirm-text">
-                The original is the camera&apos;s untouched sensor file (2048×1536) —
-                pulling it over the mesh takes {QUALITY_ETA.max} of radio airtime and
+                The original is the camera&apos;s untouched sensor file (2048×1536).
+                Pulling it over the mesh takes {QUALITY_ETA.max} of radio airtime and
                 real battery on the node. HD is usually enough.
               </span>
               <button

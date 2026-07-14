@@ -42,7 +42,7 @@ export default function PhotoTile({ photo, selecting, selected, onClick }: Photo
             HD
           </span>
         ) : photo.full_requested ? (
-          <span className="tile-hd pending" title="Quality requested — crossing the mesh">
+          <span className="tile-hd pending" title="Quality requested, crossing the mesh">
             HD…
           </span>
         ) : null}

@@ -348,7 +348,7 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
       <section className="settings-section" aria-label="Sites">
         <h2 className="site-heading">Sites</h2>
         <p className="settings-hint">
-          Sites and cameras create themselves from the slugs the mesh sends — names here are
+          Sites and cameras create themselves from the slugs the mesh sends; names here are
           display-only. Hiding removes an entry from the filter bars; its photos stay in the
           feed.
         </p>
@@ -373,7 +373,7 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
             </li>
           ))}
           {sites.length === 0 && (
-            <li className="settings-empty">No sites yet — they appear on first ingest.</li>
+            <li className="settings-empty">No sites yet; they appear on first ingest.</li>
           )}
         </ul>
       </section>
@@ -463,7 +463,7 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
           </div>
         ))}
         {cameras.length === 0 && (
-          <p className="settings-empty">No cameras yet — they appear on first ingest.</p>
+          <p className="settings-empty">No cameras yet; they appear on first ingest.</p>
         )}
       </section>
 
@@ -471,7 +471,7 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
         <h2 className="site-heading">Device tokens</h2>
         <p className="settings-hint">
           Bearer tokens the mesh gateways use to push photos and telemetry. The token is shown
-          once at creation — store it in the gateway config immediately.
+          once at creation, so store it in the gateway config immediately.
         </p>
         <ul className="settings-list">
           {tokens.map((t) => (
@@ -491,7 +491,7 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
         {!demo && minted && (
           <div className="token-reveal" role="status">
             <div className="token-reveal-head">
-              Token for <strong>{minted.name}</strong> — copy it now, it will not be shown
+              Token for <strong>{minted.name}</strong> . Copy it now; it will not be shown
               again.
             </div>
             <div className="token-reveal-row">

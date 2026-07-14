@@ -39,7 +39,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(path, { credentials: 'same-origin', ...init })
   } catch {
-    throw new ApiError(0, 'Network error — check your connection')
+    throw new ApiError(0, 'Network error, check your connection')
   }
   if (res.status === 401) {
     throw new UnauthorizedError()

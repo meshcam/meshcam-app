@@ -171,7 +171,7 @@ export default function NodeDetail({
   const statRows = useMemo<Array<[string, string]>>(() => {
     const rows: Array<[string, string]> = []
     if (node.kind === 'gateway') rows.push(['Power', 'Plugged in (mains)'])
-    else if (!everBattery) rows.push(['Power', 'External — no battery reported'])
+    else if (!everBattery) rows.push(['Power', 'External (no battery reported)'])
     const l = node.latest
     if (!l) return rows
     if (l.fw_version) rows.push(['Firmware', l.fw_version])
@@ -276,7 +276,7 @@ export default function NodeDetail({
               />
             )}
             <TelemetryChart
-              title={isGateway ? 'WiFi signal (dBm)' : 'Mesh radio — LoRa 915 MHz'}
+              title={isGateway ? 'WiFi signal (dBm)' : 'Mesh radio (LoRa 915 MHz)'}
               hint={
                 isGateway
                   ? "Strength of the gateway's WiFi uplink to the house network."

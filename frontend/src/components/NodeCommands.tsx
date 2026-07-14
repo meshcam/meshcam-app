@@ -184,7 +184,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
         >
           <p className="settings-hint">
             Keeps the node awake with its command channels open, delivered on its next
-            announce. WiFi credentials are optional — without them it just stays awake.
+            announce. WiFi credentials are optional; without them it just stays awake.
           </p>
           <div className="node-form-row">
             <label className="node-form-field">

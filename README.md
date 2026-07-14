@@ -2,28 +2,27 @@
 
 The self-hostable gallery + ingest server for
 [MeshCam](https://getmeshcam.com) LoRa mesh trail camera networks. FastAPI +
-React. Run the whole backend yourself — the hosted cloud is a convenience,
-never a lock-in.
+React. Run the whole backend yourself; the hosted cloud is optional.
 
 **Live demo with real captures: [demo.getmeshcam.com](https://demo.getmeshcam.com)**
 
 ## What it does
 
-- **Thumbnail-first gallery** — a ~5 KB thumbnail arrives over the mesh in
+- **Thumbnail-first gallery:** a ~5 KB thumbnail arrives over the mesh in
   seconds; tap ★ to request the full-resolution image, which the mesh
   delivers opportunistically (the UI shows live chunk-by-chunk transfer
   progress from telemetry).
-- **Ingest API** — idempotent, store-and-forward-friendly; devices are
+- **Ingest API:** idempotent, store-and-forward-friendly; devices are
   first-class via the open spec
   ([meshcam-api](https://github.com/meshcam/meshcam-api)). Sites and
-  cameras auto-create on first contact — the mesh adds itself.
-- **Node health** — per-node battery (LiFePO4-aware coloring), RSSI/SNR,
+  cameras auto-create on first contact; the mesh adds itself.
+- **Node health:** per-node battery (LiFePO4-aware coloring), RSSI/SNR,
   temperature charts; OK/Quiet/Dark status from last-seen.
-- **Command queue** — pull-based (gateways live behind NAT; nodes sleep):
+- **Command queue:** pull-based (gateways live behind NAT; nodes sleep):
   full-res fetches, maintenance windows, sleep.
-- **OSD stamping** — burns camera/temp/battery/timestamp into full-res
+- **OSD stamping:** burns camera/temp/battery/timestamp into full-res
   images at ingest, keeping pristine originals as `.raw` S3 siblings.
-- **Retention** — unsaved photos expire (default 180 days); starred never.
+- **Retention:** unsaved photos expire (default 180 days); starred never.
 
 ## Quickstart
 
@@ -34,7 +33,7 @@ docker compose up --build
 
 Storage is any S3 API (MinIO in the compose file; Garage/AWS/B2 all work).
 Database is SQLite out of the box, Postgres via `TRAILCAM_DATABASE_URL` or
-`TRAILCAM_DB_*` parts. Human auth is OIDC — point `TRAILCAM_OIDC_*` at your
+`TRAILCAM_DB_*` parts. Human auth is OIDC: point `TRAILCAM_OIDC_*` at your
 IdP (Authentik, Authelia, Keycloak…); device auth is per-device bearer
 tokens:
 
@@ -42,10 +41,10 @@ tokens:
 python -m trailcam.devicetoken my-gateway   # prints once; sha256 stored
 ```
 
-All configuration is `TRAILCAM_*` environment variables — see
+All configuration is `TRAILCAM_*` environment variables; see
 `backend/src/trailcam/config.py` for the complete, commented list. (Env
 prefix and module name keep the project's original working title,
-`trailcam` — renames are churn, the API is the contract.)
+`trailcam`; renames are churn and the API is the contract.)
 
 ## Development
 
@@ -57,6 +56,6 @@ cd frontend && npm ci && npm run dev
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE). Self-hosting is free forever, full stop.
+AGPL-3.0, see [LICENSE](LICENSE). Self-hosting is free forever.
 If you modify it and offer it as a network service, share your changes. For
 commercial licensing outside AGPL terms: hello@getmeshcam.com.
