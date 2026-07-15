@@ -860,6 +860,15 @@ img {
   letter-spacing: normal;
 }
 
+.get-meshcam {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: center;
+}
+.get-meshcam:hover { text-decoration: underline; }
+
 .user-demo-note {
   font-size: 0.82rem;
   color: var(--dim);

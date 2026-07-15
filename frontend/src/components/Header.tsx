@@ -66,6 +66,11 @@ export default function Header({
             Demo · read-only
           </span>
         )}
+        {demo && (
+          <a className="get-meshcam" href="https://getmeshcam.com">
+            Get MeshCam &rarr;
+          </a>
+        )}
         <div className="header-spacer" />
         {view === 'photos' && (
           <button
@@ -90,7 +95,10 @@ export default function Header({
             <div className="user-name">{me.name}</div>
             <div className="user-email">{me.email}</div>
             {demo ? (
-              <div className="user-demo-note">Read-only public demo</div>
+              <div className="user-demo-note">
+                Read-only public demo ·{' '}
+                <a href="https://getmeshcam.com">getmeshcam.com</a>
+              </div>
             ) : (
               <button type="button" className="btn signout-btn" onClick={onSignOut}>
                 <LogOut size={16} aria-hidden="true" />
