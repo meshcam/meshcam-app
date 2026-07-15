@@ -17,7 +17,14 @@ router = APIRouter(prefix="/api/v1", tags=["cameras"], dependencies=[Depends(cur
 async def me(user: dict = Depends(current_user)):
     # demo reflects the instance config, not the user dict — so a real family
     # member browsing the demo instance still sees the read-only UI.
-    return MeOut(email=user["email"], name=user["name"], demo=get_settings().demo_mode)
+    s = get_settings()
+    return MeOut(
+        email=user["email"],
+        name=user["name"],
+        demo=s.demo_mode,
+        map_tile_url=s.map_tile_url,
+        map_tile_attribution=s.map_tile_attribution,
+    )
 
 
 def _site_out(s: Site) -> SiteOut:
@@ -54,6 +61,8 @@ def _camera_out(c: Camera) -> CameraOut:
         hidden=c.hidden,
         last_seen_at=c.last_seen_at,
         last_battery_v=c.last_battery_v,
+        lat=c.lat,
+        lon=c.lon,
     )
 
 
@@ -88,5 +97,10 @@ async def patch_camera(
         cam.notes = body.notes
     if body.hidden is not None:
         cam.hidden = body.hidden
+    # lat/lon land together (the survey map's gateway pin-drop) — a position
+    # is a pair, patching one axis alone would be a bug on the caller's side.
+    if body.lat is not None and body.lon is not None:
+        cam.lat = body.lat
+        cam.lon = body.lon
     await session.commit()
     return _camera_out(cam)

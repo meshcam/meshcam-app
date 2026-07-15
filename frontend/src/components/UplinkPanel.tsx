@@ -110,7 +110,7 @@ export default function UplinkPanel({ node, nodes }: UplinkPanelProps) {
 
         <span className="uplink-chip">
           <Cloud size={14} aria-hidden="true" />
-          trailcam
+          meshcam
         </span>
       </div>
 

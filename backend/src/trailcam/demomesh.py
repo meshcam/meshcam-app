@@ -56,6 +56,15 @@ NODES: list[Node] = [
 CAMERAS = [n for n in NODES if n.kind == "camera"]
 BY_SLUG = {n.slug: n for n in NODES}
 
+# --- geography (survey map) ---------------------------------------------------
+#
+# The cabin gateway's position anchors the demo's survey map. An arbitrary
+# point in the Grand River lowlands of NE Ohio — a large tract of public
+# wildlife land, hemlock-and-beaver country that matches the property's
+# habitat story — chosen precisely because it is NOT anyone's parcel (see the
+# module docstring: nothing here describes a real property).
+GATEWAY_LATLON = (41.3500, -80.9430)
+
 # --- radio / transfer model (Gate-A measured numbers) ------------------------
 
 CHUNK = 16384  # app-layer chunk ceiling; gateway reassembles

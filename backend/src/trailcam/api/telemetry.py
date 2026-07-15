@@ -15,6 +15,7 @@ from trailcam.crud import get_or_create_node
 from trailcam.db import get_session
 from trailcam.events import COMMANDS, FEED, bus
 from trailcam.models import Camera, Command, Photo, Telemetry, utcnow
+from trailcam.probes import probe_from_extra
 from trailcam.refs import resolve_uuid_ref
 from trailcam.schemas import (
     MeshEvent,
@@ -55,6 +56,14 @@ async def post_telemetry(body: TelemetryIn, session: AsyncSession = Depends(get_
         extra=body.extra,
     )
     session.add(row)
+    # Survey probes ride the same gateway post (extra["probe"]) but are
+    # permanent records, not disposable health data — mirror them into the
+    # probes table, which the retention purges never touch. The telemetry row
+    # stays too (the live mesh feed reads it) and keeps aging out.
+    if body.extra:
+        probe = probe_from_extra(node.id, body.extra, gw_rssi=body.rssi, gw_snr=body.snr)
+        if probe is not None:
+            session.add(probe)
     node.last_seen_at = utcnow()
     if body.battery_v is not None:
         node.last_battery_v = body.battery_v

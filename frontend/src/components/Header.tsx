@@ -1,4 +1,4 @@
-import { Images, LogOut, RadioTower, Settings, SquareCheck, Star, X } from 'lucide-react'
+import { Images, LogOut, Map as MapIcon, RadioTower, Settings, SquareCheck, Star, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Camera, Me, Site, TagCount, View } from '../types'
 
@@ -29,6 +29,7 @@ interface HeaderProps {
 const VIEWS: { view: View; label: string; Icon: LucideIcon }[] = [
   { view: 'photos', label: 'Photos', Icon: Images },
   { view: 'nodes', label: 'Nodes', Icon: RadioTower },
+  { view: 'survey', label: 'Survey', Icon: MapIcon },
   { view: 'settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -59,7 +60,7 @@ export default function Header({
   return (
     <header className="header">
       <div className="header-row">
-        <h1 className="app-title">🦌 Trailcam</h1>
+        <h1 className="app-title">🦌 MeshCam</h1>
         {demo && (
           <span className="kind-badge demo-badge" title="Read-only public demo">
             Demo · read-only

@@ -8,16 +8,19 @@ import PhotoDetail from './components/PhotoDetail'
 import PhotoGrid from './components/PhotoGrid'
 import SettingsView from './components/SettingsView'
 import Splash from './components/Splash'
+import SurveyView from './components/SurveyView'
 import { easternDayBounds, easternDayKey } from './format'
 import { idMatchesRef } from './ids'
 import { live } from './live'
 import {
   closeOverlay,
+  EMPTY_SURVEY,
   feedUrl,
   navigate,
   nodesUrl,
   photoUrl,
   settingsUrl,
+  surveyUrl,
   useRoute,
 } from './router'
 import type { FeedFilters } from './router'
@@ -294,7 +297,14 @@ export default function App() {
   )
 
   const handleViewChange = useCallback((next: View) => {
-    const to = next === 'photos' ? '/' : next === 'nodes' ? nodesUrl() : settingsUrl()
+    const to =
+      next === 'photos'
+        ? '/'
+        : next === 'nodes'
+          ? nodesUrl()
+          : next === 'survey'
+            ? surveyUrl(EMPTY_SURVEY)
+            : settingsUrl()
     if (location.pathname + location.search === to) return
     navigate(to)
   }, [])
@@ -588,6 +598,8 @@ export default function App() {
       document.title = `${TITLE_BASE} · ${selected.camera_name}`
     } else if (view === 'nodes') {
       document.title = `${TITLE_BASE} · Nodes`
+    } else if (view === 'survey') {
+      document.title = `${TITLE_BASE} · Survey`
     } else if (view === 'settings') {
       document.title = `${TITLE_BASE} · Settings`
     } else {
@@ -653,6 +665,13 @@ export default function App() {
           sites={sites}
           nodeId={route.nodeId}
           demo={demo}
+          onUnauthorized={handleUnauthorized}
+        />
+      ) : view === 'survey' ? (
+        <SurveyView
+          me={auth.me}
+          demo={demo}
+          query={route.survey}
           onUnauthorized={handleUnauthorized}
         />
       ) : (

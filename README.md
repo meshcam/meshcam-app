@@ -23,6 +23,14 @@ React. Run the whole backend yourself; the hosted cloud is optional.
 - **OSD stamping:** burns camera/temp/battery/timestamp into full-res
   images at ingest, keeping pristine originals as `.raw` S3 siblings.
 - **Retention:** unsaved photos expire (default 180 days); starred never.
+- **Survey map (`/survey`):** walk the property pressing the surveyor's
+  button; probes plot coloured by gateway RSSI, cluster into sessions, and a
+  before/after compare mode shows whether an antenna move actually helped —
+  refusing to state a median from fewer than 5 matched positions. Probes are
+  permanent (retention never touches them). Basemap tiles are **off by
+  default**: probe coordinates are your camera locations, and third-party
+  tiles would tell the tile host where they are. Opt in per browser in
+  Settings, or set `TRAILCAM_MAP_TILE_URL` deployment-wide.
 
 ## Quickstart
 
@@ -49,7 +57,7 @@ prefix and module name keep the project's original working title,
 ## Development
 
 ```sh
-cd backend && uv sync && uv run pytest         # 59 tests
+cd backend && uv sync && uv run pytest         # 69 tests
 uv run uvicorn trailcam.main:app --reload
 cd frontend && npm ci && npm run dev
 ```

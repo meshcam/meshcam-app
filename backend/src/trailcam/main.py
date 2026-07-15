@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import Scope
 
 from trailcam import auth
-from trailcam.api import cameras, commands, ingest, photos, stream, telemetry
+from trailcam.api import cameras, commands, ingest, photos, probes, stream, telemetry
 from trailcam.api import settings as settings_api
 from trailcam.config import get_settings
 from trailcam.db import get_engine
@@ -115,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(telemetry.ingest_router)
     app.include_router(telemetry.nodes_router)
     app.include_router(commands.router)
+    app.include_router(probes.router)
     app.include_router(stream.router)
     app.include_router(settings_api.router)
 

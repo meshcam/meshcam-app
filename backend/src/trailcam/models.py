@@ -61,6 +61,11 @@ class Camera(Base):
     kind: Mapped[str] = mapped_column(String(16), default="camera")  # camera|relay|gateway
     notes: Mapped[str | None] = mapped_column(Text(), default=None)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Node position, for the survey map — the gateway's is the anchor every
+    # probe is judged against. Set by the map's pin-drop or by the demo seed;
+    # nodes without GPS have no way to report this themselves.
+    lat: Mapped[float | None] = mapped_column(Float, default=None)
+    lon: Mapped[float | None] = mapped_column(Float, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_battery_v: Mapped[float | None] = mapped_column(Float, default=None)
@@ -104,6 +109,62 @@ class Telemetry(Base):
     boot_reason: Mapped[str | None] = mapped_column(String(32), default=None)
     fw_version: Mapped[str | None] = mapped_column(String(64), default=None)
     extra: Mapped[dict | None] = mapped_column(MetaJSON, default=None)
+
+    camera: Mapped[Camera] = relationship()
+
+
+class Probe(Base):
+    """A surveyor button-press: one link measurement from a known place and time.
+
+    Probes arrive as ordinary telemetry (the gateway posts the payload in
+    `extra["probe"]`) but they are NOT telemetry: a heartbeat is disposable
+    health data, a probe is permanent evidence — "on this date, from this
+    spot, the link measured X" — that an antenna position gets justified
+    with. That is why they get their own table: purge_telemetry() and the
+    demo sweep age telemetry out, and must never touch this."""
+
+    __tablename__ = "probes"
+    __table_args__ = (
+        Index("ix_probes_camera_received", "camera_id", "received_at"),
+        Index("ix_probes_received_at", "received_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True, default=uuid.uuid4)
+    camera_id: Mapped[int] = mapped_column(ForeignKey("cameras.id"))  # the surveyor node
+    seq: Mapped[int | None] = mapped_column(Integer, default=None)  # board counter; resets
+    kind: Mapped[str] = mapped_column(String(16), default="probe")  # probe | big
+
+    # received_at (server clock) is AUTHORITATIVE for the timeline.
+    # captured_at is the board's RTC, which is frequently unset (raw values
+    # like 80s-since-boot land in 1970) — stored for the record, never
+    # sorted or bucketed by.
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    lat: Mapped[float | None] = mapped_column(Float, default=None)
+    lon: Mapped[float | None] = mapped_column(Float, default=None)
+    alt: Mapped[float | None] = mapped_column(Float, default=None)
+    hdop: Mapped[float | None] = mapped_column(Float, default=None)
+    sats: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Computed once at write time (probes.gps_fix_ok). Half the raw probes
+    # carry a lat/lon that is fiction — 0,0 or a stale last-known position
+    # that looks completely plausible. The map never plots fix_ok=False.
+    fix_ok: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    profile: Mapped[str | None] = mapped_column(String(32), default=None)  # 'sf8/bw125'
+    bytes: Mapped[int | None] = mapped_column(Integer, default=None)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, default=None)
+
+    # Uplink — what the gateway heard. gw_rssi is the one clean instrument in
+    # the system; gw_snr rails at ~13 dB at every distance and carries no
+    # information (stored for the record, never displayed as quality).
+    gw_rssi: Mapped[float | None] = mapped_column(Float, default=None)
+    gw_snr: Mapped[float | None] = mapped_column(Float, default=None)
+    # Downlink — what the surveyor heard. Null until the leaf firmware
+    # reports it; -104 is the board's readout floor and means "≤ -104".
+    leaf_rssi: Mapped[float | None] = mapped_column(Float, default=None)
+    leaf_snr: Mapped[float | None] = mapped_column(Float, default=None)
 
     camera: Mapped[Camera] = relationship()
 

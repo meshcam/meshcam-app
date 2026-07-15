@@ -35,7 +35,13 @@ async def test_photos_requires_session(app, client):
 async def test_me(client):
     r = await client.get("/api/v1/me")
     assert r.status_code == 200
-    assert r.json() == {"email": "test@example.com", "name": "Test", "demo": False}
+    assert r.json() == {
+        "email": "test@example.com",
+        "name": "Test",
+        "demo": False,
+        "map_tile_url": "",
+        "map_tile_attribution": "",
+    }
 
 
 # --- Public read-only demo mode ------------------------------------------------
@@ -81,7 +87,13 @@ async def test_demo_me_is_anonymous_and_flagged(demo_client):
     # No session cookie at all — demo mode opens /me via the synthetic user.
     r = await demo_client.get("/api/v1/me")
     assert r.status_code == 200
-    assert r.json() == {"email": "demo@getmeshcam.com", "name": "Demo", "demo": True}
+    assert r.json() == {
+        "email": "demo@getmeshcam.com",
+        "name": "Demo",
+        "demo": True,
+        "map_tile_url": "",
+        "map_tile_attribution": "",
+    }
 
 
 async def test_demo_reads_work_anonymously(demo_client):

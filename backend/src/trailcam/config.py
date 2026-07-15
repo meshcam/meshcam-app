@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     osd_stamp: bool = True
     osd_tz: str = ""
 
+    # Survey-map basemap tiles. Empty (the default) renders a plain graticule
+    # with a scale bar — relative geometry still works, which is enough for
+    # antenna placement. This defaults OFF deliberately: probe coordinates are
+    # precise wildlife-camera locations (poaching-sensitive for part of the
+    # audience), and fetching third-party tiles leaks the survey area to that
+    # party via the tile coordinates. Opting into OSM is a per-browser choice
+    # in the settings UI; this env sets the deployment-wide default (the demo
+    # overlay pins OSM — its property is fiction). URL template is Leaflet
+    # style, e.g. https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    map_tile_url: str = ""
+    map_tile_attribution: str = ""
+
     # Retention: unsaved photos expire this many days after arrival.
     photo_ttl_days: int = 180
     # Telemetry heartbeats age out after this many days (health history only).

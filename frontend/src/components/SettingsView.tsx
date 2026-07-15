@@ -13,6 +13,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from '../api'
 import { UnauthorizedError } from '../api'
 import { formatEastern, timeAgo } from '../format'
+import { getTileOverride, setTileOverride } from '../survey'
+import type { TileOverride } from '../survey'
 import type { Camera, DeviceToken, DeviceTokenCreated, RetentionStats, Site } from '../types'
 
 interface SettingsViewProps {
@@ -188,6 +190,93 @@ function RevokeButton({ name, onRevoke }: { name: string; onRevoke: () => Promis
   )
 }
 
+/** A gateway's position: "41.564597, -81.072401" display + inline edit.
+ *  Accepts pasted "lat, lon" (what every maps app puts on the clipboard). */
+function LocationField({
+  camera,
+  readOnly,
+  onSave,
+}: {
+  camera: Camera
+  readOnly: boolean
+  onSave: (lat: number, lon: number) => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [bad, setBad] = useState(false)
+
+  const placed = camera.lat != null && camera.lon != null
+  const shown = placed ? `${camera.lat}, ${camera.lon}` : 'not set'
+
+  const commit = async () => {
+    const m = draft.trim().match(/^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$/)
+    const lat = m ? Number(m[1]) : NaN
+    const lon = m ? Number(m[2]) : NaN
+    if (!m || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      setBad(true)
+      return
+    }
+    setBusy(true)
+    try {
+      await onSave(lat, lon)
+      setEditing(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (readOnly) {
+    return <div className="settings-row-sub">location: {shown}</div>
+  }
+  if (!editing) {
+    return (
+      <div className="settings-row-sub">
+        location: {shown}{' '}
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={`Set location for ${camera.name}`}
+          onClick={() => {
+            setDraft(placed ? shown : '')
+            setBad(false)
+            setEditing(true)
+          }}
+        >
+          <Pencil size={12} aria-hidden="true" />
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="settings-row-sub location-editor">
+      <input
+        className={`settings-input${bad ? ' input-bad' : ''}`}
+        value={draft}
+        placeholder="41.564597, -81.072401"
+        disabled={busy}
+        autoFocus
+        aria-label={`Location (lat, lon) for ${camera.name}`}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setBad(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void commit()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+      />
+      <button type="button" className="icon-btn" aria-label="Save location" disabled={busy} onClick={() => void commit()}>
+        <Check size={14} aria-hidden="true" />
+      </button>
+      <button type="button" className="icon-btn" aria-label="Cancel" disabled={busy} onClick={() => setEditing(false)}>
+        <X size={14} aria-hidden="true" />
+      </button>
+      {bad && <span className="location-bad">need "lat, lon"</span>}
+    </div>
+  )
+}
+
 function formatBytes(n: number): string {
   if (n >= 1 << 30) return `${(n / (1 << 30)).toFixed(1)} GiB`
   if (n >= 1 << 20) return `${(n / (1 << 20)).toFixed(1)} MiB`
@@ -206,6 +295,9 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
   // Notes editor state — one camera at a time keeps it simple.
   const [notesFor, setNotesFor] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
+
+  // Survey basemap: a per-browser choice (see survey.ts for the privacy why).
+  const [tileOverride, setTileOverrideState] = useState<TileOverride>(getTileOverride)
 
   // New-token form + the one-time plaintext reveal.
   const [newTokenName, setNewTokenName] = useState('')
@@ -403,6 +495,17 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
                       {c.last_seen_at ? `last seen ${timeAgo(c.last_seen_at)}` : 'never seen'}
                       {c.last_battery_v != null && ` · ${c.last_battery_v.toFixed(2)} V`}
                     </div>
+                    {/* Gateways anchor the survey map, so their position is a
+                        visible, editable fact — not something you have to
+                        infer from a marker. Paste "lat, lon" or use the
+                        survey map's place button. */}
+                    {c.kind === 'gateway' && (
+                      <LocationField
+                        camera={c}
+                        readOnly={demo}
+                        onSave={(lat, lon) => saveCamera(c, { lat, lon })}
+                      />
+                    )}
                     {demo ? (
                       c.notes ? <div className="notes-static">{c.notes}</div> : null
                     ) : notesFor === c.id ? (
@@ -535,6 +638,39 @@ export default function SettingsView({ demo, onUnauthorized, onCatalogChange }: 
             {mintError}
           </p>
         )}
+      </section>
+
+      <section className="settings-section" aria-label="Survey map">
+        <h2 className="site-heading">Survey map</h2>
+        <p className="settings-hint">
+          Probe locations are the precise positions of your cameras. A basemap is
+          fetched from a tile server, which necessarily tells that server where you
+          are surveying — so it is off unless you (or your deployment) turn it on.
+          Without one the map shows a plain grid with a scale bar, which is still
+          enough for antenna work. This choice is stored in this browser only.
+        </p>
+        <div className="tile-choice" role="radiogroup" aria-label="Basemap">
+          {(
+            [
+              ['default', 'Deployment default'],
+              ['osm', 'OpenStreetMap — sends the survey area to openstreetmap.org'],
+              ['off', 'No basemap (private)'],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value} className="tile-choice-row">
+              <input
+                type="radio"
+                name="tile-override"
+                checked={tileOverride === value}
+                onChange={() => {
+                  setTileOverrideState(value)
+                  setTileOverride(value)
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
       </section>
 
       {retention && (

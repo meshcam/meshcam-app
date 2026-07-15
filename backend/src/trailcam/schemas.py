@@ -27,12 +27,18 @@ class CameraOut(BaseModel):
     hidden: bool = False
     last_seen_at: datetime | None
     last_battery_v: float | None
+    # Node position for the survey map (the gateway's is the map anchor).
+    lat: float | None = None
+    lon: float | None = None
 
 
 class CameraPatch(BaseModel):
     name: str | None = None
     notes: str | None = None
     hidden: bool | None = None
+    # Set together by the survey map's gateway pin-drop.
+    lat: float | None = None
+    lon: float | None = None
 
 
 class TagOut(BaseModel):
@@ -88,6 +94,53 @@ class MeOut(BaseModel):
     name: str
     # True on the public demo instance — the frontend hides write controls.
     demo: bool = False
+    # Survey-map basemap default for this deployment (rides /me because it's
+    # the one bootstrap call; there is no persisted app-settings store).
+    # Empty = privacy-preserving graticule; the browser can override locally.
+    map_tile_url: str = ""
+    map_tile_attribution: str = ""
+
+
+class ProbeOut(BaseModel):
+    """One surveyor button-press. gw_* is the uplink (what the gateway heard,
+    the clean instrument); leaf_* is the downlink (null until the leaf
+    firmware reports it; -104 is the board's floor and means "≤ -104")."""
+
+    id: uuid.UUID
+    node_id: uuid.UUID  # the surveyor node
+    seq: int | None
+    kind: str
+    received_at: datetime
+    lat: float | None
+    lon: float | None
+    alt: float | None
+    hdop: float | None
+    sats: int | None
+    fix_ok: bool
+    profile: str | None
+    bytes: int | None
+    duration_ms: int | None
+    gw_rssi: float | None
+    gw_snr: float | None
+    leaf_rssi: float | None
+    leaf_snr: float | None
+
+
+class SessionCentroid(BaseModel):
+    lat: float
+    lon: float
+
+
+class ProbeSessionOut(BaseModel):
+    """A cluster of button presses (gap-based, derived, never stored)."""
+
+    index: int
+    started_at: datetime
+    ended_at: datetime
+    count: int
+    fix_count: int  # probes with a trustworthy GPS fix (the plottable ones)
+    median_gw_rssi: float | None
+    centroid: SessionCentroid | None  # over fix_ok probes; null when none
 
 
 class TelemetryIn(BaseModel):

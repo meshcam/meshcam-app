@@ -25,6 +25,39 @@ export interface Route {
   keptOnly: boolean
   date: string | null
   tag: string | null
+  survey: SurveyQuery
+}
+
+/**
+ * /survey state — all of it lives in the query string so a comparison is a
+ * sendable link ("here is the before/after of the antenna move"):
+ *
+ *   /survey?node=<id>&session=<n>&compare=<n>&from=<iso>&to=<iso>&gap=30&radius=25
+ *
+ * `session` is the range being viewed (a session index); `compare` is the
+ * baseline session it's judged against. `from`/`to` are a hand-brushed range
+ * (mutually exclusive with `session` — the brush wins if both appear).
+ */
+export interface SurveyQuery {
+  node: string | null
+  session: number | null
+  compare: number | null
+  from: string | null
+  to: string | null
+  /** Session gap threshold, minutes (server default 30). */
+  gap: number | null
+  /** Compare match radius, meters (default 25). */
+  radius: number | null
+}
+
+export const EMPTY_SURVEY: SurveyQuery = {
+  node: null,
+  session: null,
+  compare: null,
+  from: null,
+  to: null,
+  gap: null,
+  radius: null,
 }
 
 export interface FeedFilters {
@@ -68,13 +101,37 @@ function parseFilters(search: string): FeedFilters {
   return { site, cameraId, keptOnly, date, tag }
 }
 
+function intParam(params: URLSearchParams, key: string): number | null {
+  const raw = params.get(key)
+  if (raw === null || !/^\d{1,6}$/.test(raw)) return null
+  return Number(raw)
+}
+
+function parseSurvey(search: string): SurveyQuery {
+  const params = new URLSearchParams(search)
+  const nodeRaw = params.get('node')
+  const isoOk = (v: string | null) => v !== null && !Number.isNaN(Date.parse(v))
+  const from = params.get('from')
+  const to = params.get('to')
+  return {
+    node: nodeRaw !== null && normalizeIdRef(nodeRaw) !== null ? nodeRaw : null,
+    session: intParam(params, 'session'),
+    compare: intParam(params, 'compare'),
+    from: isoOk(from) ? from : null,
+    to: isoOk(to) ? to : null,
+    gap: intParam(params, 'gap'),
+    radius: intParam(params, 'radius'),
+  }
+}
+
 /** Parse a pathname + search into a Route, or null when unrecognized. */
 function tryParse(pathname: string, search: string): Route | null {
   const filters = parseFilters(search)
   const segments = pathname.split('/').filter(Boolean)
+  const base = { photoId: null, nodeId: null, survey: EMPTY_SURVEY, ...filters }
 
   if (segments.length === 0) {
-    return { view: 'photos', photoId: null, nodeId: null, ...filters }
+    return { view: 'photos', ...base }
   }
   if (segments[0] === 'photos' && segments.length === 2 && segments[1]) {
     let photoId: string
@@ -83,11 +140,11 @@ function tryParse(pathname: string, search: string): Route | null {
     } catch {
       return null
     }
-    return { view: 'photos', photoId, nodeId: null, ...filters }
+    return { view: 'photos', ...base, photoId }
   }
   if (segments[0] === 'nodes') {
     if (segments.length === 1) {
-      return { view: 'nodes', photoId: null, nodeId: null, ...filters }
+      return { view: 'nodes', ...base }
     }
     if (segments.length === 2 && segments[1]) {
       let nodeId: string
@@ -97,14 +154,17 @@ function tryParse(pathname: string, search: string): Route | null {
         return null
       }
       if (normalizeIdRef(nodeId) !== null) {
-        return { view: 'nodes', photoId: null, nodeId, ...filters }
+        return { view: 'nodes', ...base, nodeId }
       }
       // Unrecognized ref (e.g. a pre-UUID integer link) — land on the list.
-      return { view: 'nodes', photoId: null, nodeId: null, ...filters }
+      return { view: 'nodes', ...base }
     }
   }
+  if (segments[0] === 'survey' && segments.length === 1) {
+    return { view: 'survey', ...base, survey: parseSurvey(search) }
+  }
   if (segments[0] === 'settings' && segments.length === 1) {
-    return { view: 'settings', photoId: null, nodeId: null, ...filters }
+    return { view: 'settings', ...base }
   }
   return null
 }
@@ -113,7 +173,7 @@ function tryParse(pathname: string, search: string): Route | null {
 // repeated getSnapshot() calls return a referentially stable Route and
 // useSyncExternalStore doesn't loop or re-render without a real change.
 let cachedHref: string | null = null
-let cachedRoute: Route = { view: 'photos', photoId: null, nodeId: null, site: null, cameraId: null, keptOnly: false, date: null, tag: null }
+let cachedRoute: Route = { view: 'photos', photoId: null, nodeId: null, site: null, cameraId: null, keptOnly: false, date: null, tag: null, survey: EMPTY_SURVEY }
 
 function getSnapshot(): Route {
   if (cachedHref !== location.href) {
@@ -122,7 +182,7 @@ function getSnapshot(): Route {
       tryParse(location.pathname, location.search) ??
       // Defensive: unrecognized URLs are normalized at startup and navigate()
       // only ever receives app-built URLs, so this fallback should not fire.
-      { view: 'photos', photoId: null, nodeId: null, ...parseFilters(location.search) }
+      { view: 'photos', photoId: null, nodeId: null, survey: EMPTY_SURVEY, ...parseFilters(location.search) }
   }
   return cachedRoute
 }
@@ -200,6 +260,19 @@ export function photoUrl(id: string, filters: FeedFilters): string {
 
 export function nodesUrl(): string {
   return '/nodes'
+}
+
+export function surveyUrl(q: SurveyQuery): string {
+  const params = new URLSearchParams()
+  if (q.node) params.set('node', q.node)
+  if (q.session != null) params.set('session', String(q.session))
+  if (q.compare != null) params.set('compare', String(q.compare))
+  if (q.from) params.set('from', q.from)
+  if (q.to) params.set('to', q.to)
+  if (q.gap != null) params.set('gap', String(q.gap))
+  if (q.radius != null) params.set('radius', String(q.radius))
+  const qs = params.toString()
+  return `/survey${qs ? `?${qs}` : ''}`
 }
 
 export function settingsUrl(): string {

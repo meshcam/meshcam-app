@@ -28,6 +28,7 @@ homelab kubernetes/apps/trailcam/README.md).
 """
 
 import asyncio
+import math
 import os
 import random
 import sys
@@ -47,7 +48,15 @@ from trailcam import demomesh, osd  # noqa: E402
 from trailcam.auth import hash_token, mint_token  # noqa: E402
 from trailcam.config import get_settings  # noqa: E402
 from trailcam.db import get_engine  # noqa: E402
-from trailcam.models import Camera, DeviceToken, Photo, Site, Telemetry, utcnow  # noqa: E402
+from trailcam.models import (  # noqa: E402
+    Camera,
+    DeviceToken,
+    Photo,
+    Probe,
+    Site,
+    Telemetry,
+    utcnow,
+)
 from trailcam.s3 import get_store  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -137,6 +146,145 @@ PHOTOS = [
 # false PIR triggers (wind, sun flicker) — motion alert beats with no photo
 FALSE_TRIGGERS = 7
 
+# --- survey probes: the antenna-move story -----------------------------------
+#
+# A surveyor walked the property loop twice: session A with the gateway
+# antenna low behind the cabin, session B four days later after raising it to
+# the ridge-facing gable — same waypoints, several dB better, which is exactly
+# what compare mode exists to show. Session C is a short push up the north
+# spur: 3 probes, deliberately too few for a median (the <5-matched-pairs
+# honesty guard has to have something to refuse on the demo). B and C also
+# carry the downlink (leaf_*) — the story's firmware got the leaf-side report
+# mid-way, which doubles as showing the "≤ -104" floor rendering.
+#
+# Waypoints are (east_m, north_m) offsets from the cabin gateway; the loop
+# runs up the lake path, along the beech ridge, out to the oak flats corner,
+# back along the hayfield. ~100 acres ≈ a 640 m square.
+SURVEY_WALK = [
+    (25, 30), (-40, 60), (-90, 140), (-130, 260), (-90, 380), (-10, 470),
+    (90, 500), (200, 430), (270, 300), (300, 160), (220, 80), (110, 30),
+    (35, -25),
+]
+SURVEY_SPUR = [(40, 560), (110, 610), (190, 640)]  # session C — new ground
+
+
+def _offset_latlon(east_m: float, north_m: float) -> tuple[float, float]:
+    glat, glon = demomesh.GATEWAY_LATLON
+    return (
+        round(glat + north_m / 111_320, 6),
+        round(glon + east_m / (111_320 * math.cos(math.radians(glat))), 6),
+    )
+
+
+def _uplink_rssi(dist_m: float, antenna_raised: bool) -> float:
+    """Log-distance path loss shaped to the Gate-A field numbers (gw RSSI ran
+    -32…-89 dBm over 12–249 m). The pre-move antenna costs 3 dB up close and
+    ~7 dB at the property line — moves read as a gradient, not a constant."""
+    d = max(dist_m, 10.0)
+    rssi = -26.0 - 21.0 * math.log10(d)
+    if not antenna_raised:
+        rssi -= 4.0 + 4.0 * min(d, 500.0) / 500.0
+    return max(min(rssi + rng.gauss(0, 2.0), -34.0), -96.0)
+
+
+def _survey_probe(
+    surveyor: Camera,
+    at: datetime,
+    seq: int,
+    east_m: float,
+    north_m: float,
+    *,
+    raised: bool,
+    leaf: bool,
+    no_fix: str | None = None,  # None | "cold" (0,0) | "stale" (plausible lie)
+) -> Probe:
+    dist = math.hypot(east_m, north_m)
+    lat, lon = _offset_latlon(east_m, north_m)
+    gw_rssi = round(_uplink_rssi(dist, raised), 1)
+    # Throughput halves at range (187 B/s under 70 m → 101 B/s past 150 m).
+    nbytes = rng.randint(5280, 5340)
+    goodput = 190.0 + (105.0 - 190.0) * min(dist, 500.0) / 500.0 + rng.gauss(0, 10)
+    leaf_rssi = leaf_snr = None
+    if leaf:
+        # Post-fix asymmetry ≈ -13 dB; the board's readout floors at exactly
+        # -104 (probes 27+28 both read -104 at 195 m and 249 m).
+        leaf_rssi = round(gw_rssi - 13.0 + rng.gauss(0, 1.5), 1)
+        leaf_rssi = max(leaf_rssi, -104.0)
+        # Board SNR has real dynamic range only below ~12 — railed when strong.
+        leaf_snr = round(
+            rng.uniform(11.6, 12.4) if leaf_rssi > -95 else rng.uniform(6.8, 10.5), 1
+        )
+    return Probe(
+        camera_id=surveyor.id,
+        seq=seq,
+        kind="probe",
+        received_at=at,
+        # Session A's board RTC was unset (the CSV's ts=80s-since-boot era);
+        # it got set along with the leaf-report firmware.
+        captured_at=at - timedelta(seconds=rng.randint(20, 60)) if leaf else None,
+        # A cold start hasn't locked yet (0,0); a mid-walk dropout repeats the
+        # last-known position — nonzero, completely plausible, and fiction.
+        lat=0.0 if no_fix == "cold" else lat,
+        lon=0.0 if no_fix == "cold" else lon,
+        alt=round(281.0 + rng.gauss(0, 2.5), 1),
+        hdop=99.99 if no_fix else round(rng.uniform(0.9, 2.4), 2),
+        sats=0 if no_fix else rng.randint(5, 9),
+        fix_ok=no_fix is None,
+        profile="sf8/bw125",
+        bytes=nbytes,
+        duration_ms=round(nbytes / max(goodput, 60.0) * 1000),
+        gw_rssi=gw_rssi,
+        gw_snr=round(rng.uniform(12.2, 14.5), 1),  # railed — carries nothing
+        leaf_rssi=leaf_rssi,
+        leaf_snr=leaf_snr,
+    )
+
+
+def survey_probes(surveyor: Camera, now: datetime) -> list[Probe]:
+    rows: list[Probe] = []
+
+    def walk(points, start, seq0, *, raised, leaf, no_fix_at=()):  # noqa: ANN001
+        at = start
+        for i, (e, n) in enumerate(points):
+            nf = "cold" if i in no_fix_at and i == 0 else "stale" if i in no_fix_at else None
+            rows.append(
+                _survey_probe(
+                    surveyor, at, seq0 + i, e, n, raised=raised, leaf=leaf, no_fix=nf
+                )
+            )
+            at += timedelta(minutes=3, seconds=rng.randint(-40, 80))
+
+    # A: 10 days ago, evening — antenna still low. seq continues the board's
+    # bench presses; first press fired before GPS lock, one dropout mid-ridge.
+    walk(
+        [SURVEY_WALK[0]] + SURVEY_WALK,
+        capture_time(now, 10, "18:05"),
+        12,
+        raised=False,
+        leaf=False,
+        no_fix_at=(0, 5),
+    )
+    # B: 4 days ago, morning — antenna raised, leaf firmware reports the
+    # downlink now, board got power-cycled so seq reset (they do).
+    jittered = [
+        (e + rng.uniform(-8, 8), n + rng.uniform(-8, 8)) for e, n in SURVEY_WALK
+    ]
+    walk(
+        jittered + [jittered[-1]],
+        capture_time(now, 4, "09:12"),
+        1,
+        raised=True,
+        leaf=True,
+        no_fix_at=(len(jittered),),
+    )
+    # C: same morning, late — the short push up the north spur (new ground).
+    walk(SURVEY_SPUR, capture_time(now, 4, "11:40"), 12, raised=True, leaf=True)
+    # The spur's last press sits at the board's readout floor — the UI must
+    # render it "≤ -104", not plot -104 as a value.
+    rows[-1].leaf_rssi = -104.0
+    rows[-1].leaf_snr = 8.4
+    return rows
+
 
 def jitter_bbox(bbox: tuple[float, float, float, float], r: random.Random):
     """A burst frame's detector box: same subject, slightly shifted/regrown."""
@@ -196,6 +344,22 @@ async def main() -> None:
         session.add(DeviceToken(name="meshsim-gateway", token_hash=hash_token(sim_token)))
         if not os.environ.get("MESHSIM_DEVICE_TOKEN"):
             print(f"generated MESHSIM_DEVICE_TOKEN (save it):\n{sim_token}")
+
+        # --- survey probes (the antenna-move story; see SURVEY_WALK above) ---
+        # The gateway's position anchors the survey map, and it must come from
+        # the seed: the pin-drop flow is a write, which the demo 403s.
+        gw_cam = nodes["cabin-gateway"]
+        gw_cam.lat, gw_cam.lon = demomesh.GATEWAY_LATLON
+        surveyor = Camera(
+            site_id=site.id, slug="surveyor-1", name="Surveyor 1", kind="camera"
+        )
+        session.add(surveyor)
+        await session.flush()
+        probe_rows = survey_probes(surveyor, now)
+        session.add_all(probe_rows)
+        # Offline-since-the-last-walk is what a real surveyor looks like.
+        surveyor.last_seen_at = max(p.received_at for p in probe_rows)
+        surveyor.last_battery_v = 4.02
 
         # --- photos: detector-crop thumbnails only ---------------------------
         # camera slug -> [(at, extra)] mesh beats to backfill alongside heartbeats
@@ -386,7 +550,8 @@ async def main() -> None:
     n_photos = sum(b for *_x, b in PHOTOS)
     print(
         f"seeded {n_photos} thumbnail-only photos, {len(demomesh.NODES)} nodes, "
-        f"7d telemetry, {beat_rows} mesh beats, originals for the simulator"
+        f"7d telemetry, {beat_rows} mesh beats, {len(probe_rows)} survey probes "
+        "(3 sessions), originals for the simulator"
     )
 
 

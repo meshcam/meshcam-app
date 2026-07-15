@@ -10,6 +10,8 @@ import type {
   NodeHealth,
   Photo,
   PhotosPage,
+  Probe,
+  ProbeSession,
   RetentionStats,
   Site,
   TagCount,
@@ -95,6 +97,9 @@ export interface CameraPatch {
   name?: string
   notes?: string
   hidden?: boolean
+  /** Set together — the survey map's gateway pin-drop. */
+  lat?: number
+  lon?: number
 }
 
 export function patchCamera(id: string, patch: CameraPatch): Promise<Camera> {
@@ -231,6 +236,33 @@ export function queueNodeCommand(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, payload }),
   })
+}
+
+export interface ProbeQuery {
+  node?: string
+  from?: string
+  to?: string
+  /** 'all' includes no-fix probes (the survey view wants them for the count
+   *  + side list); the server default 'only' hides them. */
+  fix?: 'only' | 'all'
+}
+
+export function getProbes(query: ProbeQuery = {}): Promise<Probe[]> {
+  const params = new URLSearchParams()
+  if (query.node) params.set('node', query.node)
+  if (query.from) params.set('from', query.from)
+  if (query.to) params.set('to', query.to)
+  if (query.fix) params.set('fix', query.fix)
+  const qs = params.toString()
+  return request<Probe[]>(`/api/v1/probes${qs ? `?${qs}` : ''}`)
+}
+
+export function getProbeSessions(node?: string, gapMin?: number): Promise<ProbeSession[]> {
+  const params = new URLSearchParams()
+  if (node) params.set('node', node)
+  if (gapMin != null) params.set('gap_min', String(gapMin))
+  const qs = params.toString()
+  return request<ProbeSession[]>(`/api/v1/probes/sessions${qs ? `?${qs}` : ''}`)
 }
 
 export function getNodeTelemetry(id: string, hours: number): Promise<TelemetrySeries> {

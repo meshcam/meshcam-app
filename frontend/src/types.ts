@@ -3,6 +3,10 @@ export interface Me {
   name: string
   /** Public read-only demo instance — the UI hides every write control. */
   demo: boolean
+  /** Deployment-default survey basemap ("" = private graticule); the browser
+   *  can override locally (see survey.ts). */
+  map_tile_url: string
+  map_tile_attribution: string
 }
 
 export interface Site {
@@ -22,6 +26,9 @@ export interface Camera {
   hidden: boolean
   last_seen_at: string | null
   last_battery_v: number | null
+  /** Node position for the survey map (the gateway's is the map anchor). */
+  lat: number | null
+  lon: number | null
 }
 
 export interface PhotoMeta {
@@ -65,7 +72,44 @@ export interface PhotosPage {
   next_cursor: string | null
 }
 
-export type View = 'photos' | 'nodes' | 'settings'
+export type View = 'photos' | 'nodes' | 'survey' | 'settings'
+
+/** One surveyor button-press. gw_* is the uplink (what the gateway heard —
+ *  the one clean instrument); leaf_* is the downlink (null until the leaf
+ *  firmware reports it; -104 is the board's floor and means "≤ -104"). */
+export interface Probe {
+  id: string
+  node_id: string
+  seq: number | null
+  kind: string
+  received_at: string
+  lat: number | null
+  lon: number | null
+  alt: number | null
+  hdop: number | null
+  sats: number | null
+  /** Whether the coordinates are a measurement rather than fiction — the map
+   *  never plots false (the no-fix list carries those). */
+  fix_ok: boolean
+  profile: string | null
+  bytes: number | null
+  duration_ms: number | null
+  gw_rssi: number | null
+  gw_snr: number | null
+  leaf_rssi: number | null
+  leaf_snr: number | null
+}
+
+/** A cluster of button presses (server-derived from received_at gaps). */
+export interface ProbeSession {
+  index: number
+  started_at: string
+  ended_at: string
+  count: number
+  fix_count: number
+  median_gw_rssi: number | null
+  centroid: { lat: number; lon: number } | null
+}
 
 export interface DeviceToken {
   id: string
