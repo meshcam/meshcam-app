@@ -59,6 +59,9 @@ class PhotoOut(BaseModel):
     # capture event id — lets the UI correlate live mesh transfer beats
     # (extra.transfer.event_id) with an open photo for progress display
     event_id: str
+    # burst group (models.Photo.sighting_id) — lets the grouped feed route a
+    # live photo event to its tile without a refetch
+    sighting_id: uuid.UUID
     camera_id: uuid.UUID
     camera_name: str
     site_slug: str
@@ -77,6 +80,35 @@ class PhotoOut(BaseModel):
 class PhotoPage(BaseModel):
     items: list[PhotoOut]
     next_cursor: str | None
+
+
+class SightingOut(BaseModel):
+    """One burst of same-camera photos — the grouped feed's tile. Under an
+    active kept/tag filter, count/kept_count/cover describe the matching
+    frames only; started/ended still span them, not the whole burst."""
+
+    id: uuid.UUID  # Photo.sighting_id
+    camera_id: uuid.UUID
+    camera_name: str
+    site_slug: str
+    count: int
+    kept_count: int
+    started_at: datetime  # min(captured_at)
+    ended_at: datetime  # max(captured_at)
+    last_received_at: datetime  # max(received_at) — the feed sort key
+    cover: PhotoOut  # earliest-captured matching frame
+
+
+class SightingPage(BaseModel):
+    items: list[SightingOut]
+    next_cursor: str | None
+
+
+class HistogramBucketOut(BaseModel):
+    """One UTC hour of capture activity (only non-empty hours are sent)."""
+
+    hour: datetime
+    count: int
 
 
 class KeepIn(BaseModel):
@@ -146,7 +178,7 @@ class ProbeSessionOut(BaseModel):
 class TelemetryIn(BaseModel):
     site: str
     node: str
-    kind: Literal["camera", "relay", "gateway"] | None = None
+    kind: Literal["camera", "relay", "gateway", "surveyor"] | None = None
     reported_at: datetime | None = None
     battery_v: float | None = None
     temp_c: float | None = None
@@ -193,6 +225,16 @@ class MeshEvent(BaseModel):
     extra: dict | None = None
 
 
+class NodeHealthCounters(BaseModel):
+    """Since-boot leaf health counters, carried in every announce's app_data
+    (leaf-0.12.0, bug 5) and forwarded by the gateway as telemetry extra.health."""
+
+    pir_wakes: int | None = None
+    captures: int | None = None
+    push_fails: int | None = None
+    battery_v: float | None = None
+
+
 class NodeHealth(BaseModel):
     id: uuid.UUID
     slug: str
@@ -203,6 +245,11 @@ class NodeHealth(BaseModel):
     last_battery_v: float | None
     last_photo_at: datetime | None
     latest: TelemetrySnapshot | None
+    health: NodeHealthCounters | None = None
+    # True when push_fails climbed within the recent window: the camera is capturing
+    # but its pushes are failing — the exact failure mode that looked like a "quiet
+    # cam" for 21 h on 07-15 (bug 5).
+    push_failing: bool = False
 
 
 class TelemetryPoint(BaseModel):
@@ -232,7 +279,9 @@ class CommandOut(BaseModel):
 
 
 class CommandAck(BaseModel):
-    status: Literal["done", "failed"]
+    # "received" = the node acked receipt via its announce (relayed by the gateway,
+    # bug 8): stops redelivery, but the command stays live for completion/expiry.
+    status: Literal["received", "done", "failed"]
     detail: str | None = None
 
 
@@ -294,17 +343,19 @@ class NodeCommandOut(BaseModel):
     detail: str | None
     created_at: datetime
     delivered_at: datetime | None
+    received_at: datetime | None
     completed_at: datetime | None
 
 
 class FullRequestOut(BaseModel):
     """Diagnostics for a photo's fetch_full command — the over-the-wire story."""
 
-    status: str  # pending | delivered | done | failed | expired
+    status: str  # pending | delivered | received | done | failed | expired
     quality: str
     requested_by: str | None
     created_at: datetime
     delivered_at: datetime | None
+    received_at: datetime | None
     completed_at: datetime | None
     detail: str | None
     node_last_seen_at: datetime | None

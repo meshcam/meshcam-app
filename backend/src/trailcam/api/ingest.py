@@ -24,6 +24,7 @@ from trailcam.events import FEED, bus, publish_request_update
 from trailcam.models import OUTSTANDING, Command, Photo, Site, utcnow
 from trailcam.s3 import get_store, raw_variant
 from trailcam.schemas import IngestOut, PhotoOut, SiteOut
+from trailcam.sightings import assign_sighting
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +69,17 @@ async def ingest(
     cam = await get_or_create_node(session, site, camera)
     photo = await session.scalar(select(Photo).where(Photo.event_id == event_id))
     created = photo is None
+    merged_from = None
     if photo is None:
         settings = get_settings()
+        sighting_id, merged_from = await assign_sighting(
+            session, cam.id, captured_at, settings.sighting_gap_min
+        )
         photo = Photo(
             event_id=event_id,
             camera_id=cam.id,
             captured_at=captured_at,
+            sighting_id=sighting_id,
             content_type=content_type,
             meta=meta_dict,
             expires_at=utcnow() + timedelta(days=settings.photo_ttl_days),
@@ -139,6 +145,17 @@ async def ingest(
 
     await session.commit()
 
+    # Live UI: a straggler just proved two sightings were one visit — tell
+    # open tabs to fold the absorbed tile before its photo event arrives.
+    if merged_from is not None:
+        bus.publish(
+            FEED,
+            {
+                "event": "sighting_merge",
+                "data": {"into": str(photo.sighting_id), "from": str(merged_from)},
+            },
+        )
+
     # Live UI: push the fresh photo to every connected browser. full_requested
     # is false by construction here (a new photo can't have requests yet; a
     # full arrival just completed any outstanding one).
@@ -150,6 +167,7 @@ async def ingest(
                 **PhotoOut(
                     id=photo.id,
                     event_id=event_id,
+                    sighting_id=photo.sighting_id,
                     camera_id=cam.public_id,
                     camera_name=cam.name,
                     site_slug=site,

@@ -1,4 +1,4 @@
-import { Images, LogOut, Map as MapIcon, RadioTower, Settings, SquareCheck, Star, X } from 'lucide-react'
+import { Images, Layers, LogOut, Map as MapIcon, RadioTower, Settings, SquareCheck, Star } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Camera, Me, Site, TagCount, View } from '../types'
 
@@ -16,11 +16,12 @@ interface HeaderProps {
   onCameraChange: (id: string | null) => void
   keptOnly: boolean
   onKeptOnlyChange: (value: boolean) => void
-  date: string | null
-  onDateChange: (value: string | null) => void
   tags: TagCount[]
   tag: string | null
   onTagChange: (value: string | null) => void
+  /** Ungrouped feed (every frame its own tile); grouped is the default. */
+  flat: boolean
+  onFlatChange: (value: boolean) => void
   selecting: boolean
   onToggleSelecting: () => void
   onSignOut: () => void
@@ -46,11 +47,11 @@ export default function Header({
   onCameraChange,
   keptOnly,
   onKeptOnlyChange,
-  date,
-  onDateChange,
   tags,
   tag,
   onTagChange,
+  flat,
+  onFlatChange,
   selecting,
   onToggleSelecting,
   onSignOut,
@@ -77,6 +78,7 @@ export default function Header({
             type="button"
             className={`btn saved-toggle${keptOnly ? ' active' : ''}`}
             aria-pressed={keptOnly}
+            aria-label="Saved photos only"
             onClick={() => onKeptOnlyChange(!keptOnly)}
           >
             <Star
@@ -84,7 +86,7 @@ export default function Header({
               fill={keptOnly ? 'currentColor' : 'none'}
               aria-hidden="true"
             />
-            Saved
+            <span className="btn-label">Saved</span>
           </button>
         )}
         <details className="user-menu">
@@ -173,34 +175,27 @@ export default function Header({
               ))}
             </select>
           )}
-          <span className={`date-filter${date ? ' active' : ''}`}>
-            <input
-              type="date"
-              className="date-input"
-              aria-label="Filter by capture date"
-              value={date ?? ''}
-              onChange={(e) => onDateChange(e.target.value || null)}
-            />
-            {date && (
-              <button
-                type="button"
-                className="icon-btn date-clear"
-                aria-label="Clear date filter"
-                onClick={() => onDateChange(null)}
-              >
-                <X size={14} aria-hidden="true" />
-              </button>
-            )}
-          </span>
+          <button
+            type="button"
+            className={`btn saved-toggle${!flat ? ' active' : ''}`}
+            aria-pressed={!flat}
+            aria-label="Group burst photos into sightings"
+            title={flat ? 'Group burst photos into sightings' : 'Show every frame separately'}
+            onClick={() => onFlatChange(!flat)}
+          >
+            <Layers size={16} aria-hidden="true" />
+            <span className="btn-label">Grouped</span>
+          </button>
           {!demo && (
             <button
               type="button"
               className={`btn select-toggle${selecting ? ' active' : ''}`}
               aria-pressed={selecting}
+              aria-label="Select photos"
               onClick={onToggleSelecting}
             >
               <SquareCheck size={16} aria-hidden="true" />
-              Select
+              <span className="btn-label">Select</span>
             </button>
           )}
         </div>

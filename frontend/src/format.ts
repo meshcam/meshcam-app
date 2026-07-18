@@ -158,3 +158,14 @@ export function expiryLabel(expiresAt: string | null, keep: boolean): string {
   const minutes = Math.max(1, Math.floor(remaining / 60_000))
   return `Expires in ${minutes}m`
 }
+
+/** Days between capture and arrival (bug 4, 2026-07-16): an un-synced leaf clock
+ * backdates captured_at by days and buries fresh photos deep in the gallery (a
+ * recovered photo once landed 12 days back). Normal operation is seconds apart;
+ * anything over a day means the capture timestamp is unreliable. */
+export function captureSkewDays(capturedAt: string, receivedAt: string): number {
+  const cap = Date.parse(capturedAt)
+  const rec = Date.parse(receivedAt)
+  if (Number.isNaN(cap) || Number.isNaN(rec)) return 0
+  return Math.abs(rec - cap) / 86_400_000
+}

@@ -52,6 +52,8 @@ export interface Photo {
   id: string
   /** Capture event id — matches live mesh transfer beats for progress display. */
   event_id: string
+  /** Burst group — routes live photo events to their sighting tile. */
+  sighting_id: string
   camera_id: string
   camera_name: string
   site_slug: string
@@ -70,6 +72,34 @@ export interface Photo {
 export interface PhotosPage {
   items: Photo[]
   next_cursor: string | null
+}
+
+/** One burst of same-camera photos — the grouped feed's tile. Under an active
+ *  kept/tag filter, count/kept_count/cover describe the matching frames only. */
+export interface Sighting {
+  id: string
+  camera_id: string
+  camera_name: string
+  site_slug: string
+  count: number
+  kept_count: number
+  started_at: string
+  ended_at: string
+  /** max(received_at) — the feed sort key (arrival order, like the flat feed). */
+  last_received_at: string
+  /** Earliest-captured matching frame (the animal entering). */
+  cover: Photo
+}
+
+export interface SightingsPage {
+  items: Sighting[]
+  next_cursor: string | null
+}
+
+/** One UTC hour of capture activity (only non-empty hours are sent). */
+export interface HistogramBucket {
+  hour: string
+  count: number
 }
 
 export type View = 'photos' | 'nodes' | 'survey' | 'settings'
@@ -132,7 +162,7 @@ export interface RetentionStats {
   full_bytes: number
 }
 
-export type NodeKind = 'camera' | 'relay' | 'gateway'
+export type NodeKind = 'camera' | 'relay' | 'gateway' | 'surveyor'
 
 export interface NodeLatest {
   received_at: string
@@ -147,6 +177,14 @@ export interface NodeLatest {
   extra: Record<string, unknown> | null
 }
 
+/** Since-boot leaf health counters from every announce (leaf-0.12.0, bug 5). */
+export interface NodeHealthCounters {
+  pir_wakes: number | null
+  captures: number | null
+  push_fails: number | null
+  battery_v: number | null
+}
+
 export interface NodeHealth {
   id: string
   slug: string
@@ -157,6 +195,9 @@ export interface NodeHealth {
   last_battery_v: number | null
   last_photo_at: string | null
   latest: NodeLatest | null
+  health: NodeHealthCounters | null
+  /** push_fails climbed recently: capturing fine, but pushes are failing (bug 5). */
+  push_failing: boolean
 }
 
 export interface TelemetryPoint {
@@ -172,7 +213,13 @@ export interface TelemetrySeries {
   points: TelemetryPoint[]
 }
 
-export type FullRequestStatus = 'pending' | 'delivered' | 'done' | 'failed' | 'expired'
+export type FullRequestStatus =
+  | 'pending'
+  | 'delivered'
+  | 'received' // node acked receipt via its announce (bug 8) — in flight, not redelivered
+  | 'done'
+  | 'failed'
+  | 'expired'
 
 export type NodeCommandKind = 'maintenance' | 'sleep' | 'update_firmware'
 
@@ -186,6 +233,7 @@ export interface NodeCommand {
   detail: string | null
   created_at: string
   delivered_at: string | null
+  received_at: string | null
   completed_at: string | null
 }
 
@@ -195,6 +243,7 @@ export interface FullRequest {
   requested_by: string | null
   created_at: string
   delivered_at: string | null
+  received_at: string | null
   completed_at: string | null
   detail: string | null
   node_last_seen_at: string | null

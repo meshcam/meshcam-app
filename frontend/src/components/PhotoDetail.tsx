@@ -14,7 +14,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react'
 import { ApiError, getFullRequest, photoImageUrl } from '../api'
-import { expiryLabel, formatEastern, timeAgo } from '../format'
+import { captureSkewDays, expiryLabel, formatEastern, timeAgo } from '../format'
 import { live } from '../live'
 import type { FullRequest, MeshEvent, MeshTransfer, Photo, TagCount } from '../types'
 
@@ -176,7 +176,8 @@ export default function PhotoDetail({
   const requestOutstanding =
     photo.full_requested ||
     fullReq?.status === 'pending' ||
-    fullReq?.status === 'delivered'
+    fullReq?.status === 'delivered' ||
+    fullReq?.status === 'received'
 
   // Live transfer progress: every chunk the gateway pulls is beaconed on the
   // mesh stream; keep the latest beat that belongs to this photo.
@@ -365,6 +366,15 @@ export default function PhotoDetail({
           <span className="detail-meta-item detail-camera">{photo.camera_name}</span>
           <span className="detail-meta-item detail-site">{photo.site_slug}</span>
           <span className="detail-meta-item">{formatEastern(photo.captured_at)}</span>
+          {captureSkewDays(photo.captured_at, photo.received_at) > 1 && (
+            <span
+              className="detail-meta-item skew-warn"
+              title="The camera's clock was un-synced when this was captured — the capture time is unreliable. The arrival time is trustworthy."
+            >
+              <CircleAlert size={12} aria-hidden="true" /> clock skew — arrived{' '}
+              {formatEastern(photo.received_at)}
+            </span>
+          )}
           {facts.map((fact) => (
             <span key={fact.label} className="detail-meta-item detail-fact">
               <span className="detail-fact-label">{fact.label}</span> {fact.value}
@@ -499,6 +509,19 @@ export default function PhotoDetail({
                   Relaying to the node; {photo.camera_name} last heard{' '}
                   {fullReq.node_last_seen_at ? timeAgo(fullReq.node_last_seen_at) : 'never'}
                   {' '}(sleepy nodes answer on their next wake)
+                </li>
+              )}
+              {(fullReq.received_at || fullReq.status === 'received') && (
+                <li className="step-done">
+                  <Check size={13} aria-hidden="true" />
+                  {photo.camera_name} confirmed receipt
+                  {fullReq.received_at ? ` ${formatEastern(fullReq.received_at)}` : ''}
+                </li>
+              )}
+              {fullReq.status === 'received' && !transferring && !reassembling && (
+                <li className="step-wait">
+                  <Clock size={13} aria-hidden="true" />
+                  Node is preparing the transfer (a stored original sends in chunks)
                 </li>
               )}
               {(transferring || reassembling) && (

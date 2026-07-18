@@ -3,8 +3,10 @@ import {
   BatteryLow,
   BatteryWarning,
   Camera,
+  Compass,
   RadioTower,
   Router,
+  TriangleAlert,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { timeAgo, uptimeLabel } from '../format'
@@ -15,6 +17,7 @@ const KIND_ICON: Record<string, LucideIcon> = {
   camera: Camera,
   relay: RadioTower,
   gateway: Router,
+  surveyor: Compass,
 }
 
 const BATTERY_ICON: Record<string, LucideIcon> = {
@@ -56,6 +59,15 @@ export default function NodeCard({ node, onClick }: NodeCardProps) {
   if (node.last_photo_at) {
     facts.push({ label: 'Last photo', value: timeAgo(node.last_photo_at) })
   }
+  if (node.health?.captures != null) {
+    // Since-boot counters off the announce path (bug 5): wakes / captures / failed pushes
+    facts.push({
+      label: 'Boot',
+      value: `${node.health.pir_wakes ?? '?'} wakes · ${node.health.captures} caps · ${
+        node.health.push_fails ?? 0
+      } push-fail`,
+    })
+  }
 
   const fine = [
     latest?.fw_version ? `fw ${latest.fw_version}` : null,
@@ -84,6 +96,15 @@ export default function NodeCard({ node, onClick }: NodeCardProps) {
         <span className="node-status-time">
           {node.last_seen_at ? timeAgo(node.last_seen_at) : 'never'}
         </span>
+        {node.push_failing && (
+          <span
+            className="push-failing-pill"
+            title="Capturing fine but its photo pushes are failing — the mesh link back is broken (this looked like a quiet cam for 21 h on 07-15)"
+          >
+            <TriangleAlert size={12} aria-hidden="true" />
+            pushes failing
+          </span>
+        )}
       </div>
 
       {batteryV != null && level != null && (

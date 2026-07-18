@@ -1,10 +1,11 @@
-import { X } from 'lucide-react'
+import { Check, Pencil, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react'
 import * as api from '../api'
 import { UnauthorizedError } from '../api'
 import { timeAgo } from '../format'
 import type { NodeHealth, TelemetryPoint } from '../types'
+import NodeCaptures from './NodeCaptures'
 import NodeCommands from './NodeCommands'
 import TelemetryChart from './TelemetryChart'
 import UplinkPanel from './UplinkPanel'
@@ -17,6 +18,8 @@ interface NodeDetailProps {
   demo: boolean
   onClose: () => void
   onUnauthorized: () => void
+  /** A rename was saved — the parent owns the health list, so it patches its copy. */
+  onRenamed: (id: string, name: string) => void
 }
 
 const RANGES = [
@@ -82,12 +85,52 @@ export default function NodeDetail({
   demo,
   onClose,
   onUnauthorized,
+  onRenamed,
 }: NodeDetailProps) {
   const [hours, setHours] = useState<number>(168)
   const [attempt, setAttempt] = useState(0)
   const [points, setPoints] = useState<TelemetryPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Inline rename of the display name (names live server-side; the wire slug
+  // is the device's stable identity and is not editable here).
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [renameError, setRenameError] = useState<string | null>(null)
+
+  const startRename = () => {
+    setNameDraft(node.name)
+    setRenameError(null)
+    setEditingName(true)
+  }
+
+  const submitRename = (e: FormEvent) => {
+    e.preventDefault()
+    const name = nameDraft.trim()
+    if (!name || savingName) return
+    if (name === node.name) {
+      setEditingName(false)
+      return
+    }
+    setSavingName(true)
+    setRenameError(null)
+    api
+      .patchCamera(node.id, { name })
+      .then((cam) => {
+        setEditingName(false)
+        onRenamed(node.id, cam.name)
+      })
+      .catch((err: unknown) => {
+        if (err instanceof UnauthorizedError) {
+          onUnauthorized()
+          return
+        }
+        setRenameError('Rename failed')
+      })
+      .finally(() => setSavingName(false))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -114,17 +157,18 @@ export default function NodeDetail({
     }
   }, [node.id, hours, attempt, onUnauthorized])
 
-  // Keyboard: Escape closes.
+  // Keyboard: Escape cancels an in-flight rename first, then closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        if (editingName) setEditingName(false)
+        else onClose()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, editingName])
 
   // Lock body scroll while the overlay is open.
   useEffect(() => {
@@ -195,7 +239,52 @@ export default function NodeDetail({
       onClick={closeOnSelf}
     >
       <div className="detail-topbar">
-        <span className="detail-title">{node.name}</span>
+        {editingName ? (
+          <form className="detail-rename" onSubmit={submitRename}>
+            <input
+              className="settings-input detail-rename-input"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={120}
+              autoFocus
+              aria-label="Node name"
+              disabled={savingName}
+            />
+            <button
+              type="submit"
+              className="btn icon-btn"
+              disabled={savingName || !nameDraft.trim()}
+              aria-label="Save name"
+            >
+              <Check size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn icon-btn"
+              onClick={() => setEditingName(false)}
+              disabled={savingName}
+              aria-label="Cancel rename"
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+            {renameError && <span className="detail-rename-error">{renameError}</span>}
+          </form>
+        ) : (
+          <span className="detail-title">
+            {node.name}
+            {!demo && (
+              <button
+                type="button"
+                className="btn icon-btn detail-rename-btn"
+                aria-label="Rename node"
+                title="Rename node"
+                onClick={startRename}
+              >
+                <Pencil size={14} aria-hidden="true" />
+              </button>
+            )}
+          </span>
+        )}
         <button
           type="button"
           className="btn icon-btn detail-close"
@@ -211,6 +300,11 @@ export default function NodeDetail({
           {node.kind} · {node.site_slug} · last seen{' '}
           {node.last_seen_at ? timeAgo(node.last_seen_at) : 'never'}
         </div>
+
+        {/* Relays/gateways/surveyors don't take photos — cameras only. */}
+        {node.kind === 'camera' && (
+          <NodeCaptures node={node} onUnauthorized={onUnauthorized} />
+        )}
 
         <UplinkPanel node={node} nodes={nodes} />
 

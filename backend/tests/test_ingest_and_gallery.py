@@ -112,6 +112,25 @@ async def test_pagination_cursor_orders_by_arrival(client, device_token):
     assert p1["items"][0]["received_at"] > p2["items"][0]["received_at"]
 
 
+async def test_anchor_partitions_and_pages_upward(client, device_token):
+    base = utcnow()
+    for i in range(6):
+        await ingest(client, device_token, event_id=f"a{i}", captured=base - timedelta(minutes=i))
+    top = (await client.get("/api/v1/photos")).json()["items"]  # newest arrival first
+    anchor = top[2]["received_at"]
+
+    down = (await client.get(f"/api/v1/photos?anchor={anchor}&limit=2")).json()
+    up = (await client.get(f"/api/v1/photos?anchor={anchor}&direction=newer&limit=2")).json()
+    # Clean partition: down is strictly older than the anchor, up is the anchor
+    # and newer — both still newest-first.
+    assert [p["id"] for p in down["items"]] == [top[3]["id"], top[4]["id"]]
+    assert [p["id"] for p in up["items"]] == [top[1]["id"], top[2]["id"]]
+
+    up2 = (await client.get(f"/api/v1/photos?after={up['next_cursor']}&limit=5")).json()
+    assert [p["id"] for p in up2["items"]] == [top[0]["id"]]
+    assert up2["next_cursor"] is None
+
+
 async def test_future_captured_at_clamped(client, device_token):
     future = utcnow() + timedelta(hours=4)  # leaf clock running fast (seen on bench)
     r = await ingest(client, device_token, event_id="fastclock", captured=future)

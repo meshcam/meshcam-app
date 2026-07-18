@@ -58,7 +58,7 @@ class Camera(Base):
     site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"))
     slug: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(128))
-    kind: Mapped[str] = mapped_column(String(16), default="camera")  # camera|relay|gateway
+    kind: Mapped[str] = mapped_column(String(16), default="camera")  # camera|relay|gateway|surveyor
     notes: Mapped[str | None] = mapped_column(Text(), default=None)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     # Node position, for the survey map — the gateway's is the anchor every
@@ -172,8 +172,11 @@ class Probe(Base):
 class Command(Base):
     """Work queued for a mesh node, pulled by the gateway (nodes sleep and sit
     behind the tunnel, so it's poll-based). Lifecycle: pending -> delivered
-    (gateway fetched it) -> done (e.g. the full-res arrived via ingest) /
-    failed (gateway ack) / expired (purge gave up)."""
+    (gateway fetched it; redelivered on every announce) -> received (the NODE
+    acked it via its announce, relayed by the gateway — bug 8: "delivered"
+    alone sat for hours while the gateway TXed onto a dead radio profile) ->
+    done (e.g. the full-res arrived via ingest) / failed (gateway ack) /
+    expired (TTL gave up)."""
 
     __tablename__ = "commands"
     __table_args__ = (
@@ -191,12 +194,16 @@ class Command(Base):
     detail: Mapped[str | None] = mapped_column(Text(), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     camera: Mapped[Camera] = relationship()
 
 
-OUTSTANDING = ("pending", "delivered")
+# In flight: dedupe/demo caps, TTL expiry, and ingest auto-complete all treat these as
+# live. Only pending/delivered are REDELIVERED (commands.py) — "received" means the node
+# confirmed receipt, so re-sending it would just burn announce windows.
+OUTSTANDING = ("pending", "delivered", "received")
 
 
 photo_tags = Table(
@@ -229,11 +236,18 @@ class Photo(Base):
         Index("ix_photos_received_at_id", "received_at", "id"),
         Index("ix_photos_camera_captured", "camera_id", "captured_at"),
         Index("ix_photos_expires_at", "expires_at"),
+        Index("ix_photos_sighting_id", "sighting_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     event_id: Mapped[str] = mapped_column(String(128), unique=True)
     camera_id: Mapped[int] = mapped_column(ForeignKey("cameras.id"))
+    # Burst grouping: photos from one camera whose captured_at gaps stay under
+    # settings.sighting_gap_min share a sighting_id — "one animal visit", the
+    # unit the feed shows as a single tile. Assigned at ingest (sightings.py),
+    # including the merge when a store-and-forward straggler bridges two
+    # groups. Derived from surviving rows only, so deletion needs no upkeep.
+    sighting_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     thumb_key: Mapped[str | None] = mapped_column(String(512), default=None)

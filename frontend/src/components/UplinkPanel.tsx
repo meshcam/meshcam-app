@@ -1,4 +1,4 @@
-import { ArrowRight, Camera, Cloud, Radio, RadioTower, Router, Wifi } from 'lucide-react'
+import { ArrowRight, Camera, Cloud, Compass, Radio, RadioTower, Router, Wifi } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { timeAgo } from '../format'
 import { nodeStatus, STATUS_LABEL } from '../nodes'
@@ -9,6 +9,7 @@ const KIND_ICON: Record<string, LucideIcon> = {
   camera: Camera,
   relay: RadioTower,
   gateway: Router,
+  surveyor: Compass,
 }
 
 interface UplinkPanelProps {

@@ -12,6 +12,11 @@ React. Run the whole backend yourself; the hosted cloud is optional.
   seconds; tap ★ to request the full-resolution image, which the mesh
   delivers opportunistically (the UI shows live chunk-by-chunk transfer
   progress from telemetry).
+- **Sightings, not frames:** burst photos group into one "animal visit"
+  tile (per-camera capture gaps under `TRAILCAM_SIGHTING_GAP_MIN`, default
+  30 min) — a real field feed collapsed 19x. Tap to page through the burst;
+  `?flat=1` shows every frame. A brushable activity timeline above the grid
+  jumps the feed to wherever the activity was.
 - **Ingest API:** idempotent, store-and-forward-friendly; devices are
   first-class via the open spec
   ([meshcam-api](https://github.com/meshcam/meshcam-api)). Sites and

@@ -32,6 +32,7 @@ import math
 import os
 import random
 import sys
+import uuid
 import zlib
 from datetime import datetime, time, timedelta
 from pathlib import Path
@@ -380,6 +381,9 @@ async def main() -> None:
                     (round(left * w), round(top * h), round(right * w), round(bottom * h))
                 )
             first_at = capture_time(now, days_ago, hhmm)
+            # Each PHOTOS entry is one deliberate burst — one sighting. (The
+            # seed bypasses ingest, so it assigns the group id itself.)
+            sighting_id = uuid.uuid4()
 
             for i in range(burst):
                 captured = first_at + timedelta(seconds=i * rng.randint(3, 9))
@@ -431,6 +435,7 @@ async def main() -> None:
                         camera_id=cam.id,
                         captured_at=captured,
                         received_at=received,
+                        sighting_id=sighting_id,
                         thumb_key=f"{key_base}.thumb.jpg",
                         thumb_size=len(thumb),
                         meta=meta,

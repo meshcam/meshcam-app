@@ -398,8 +398,44 @@ img {
 
 .tile-star {
   display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--star);
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
+}
+
+.tile-star-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* capture-time unreliable (bug 4): leaf clock was un-synced, captured_at is off by 1+ days */
+.tile-skew {
+  display: inline-flex;
+  align-items: center;
+  color: var(--warn);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
+}
+
+.skew-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+}
+
+/* Sighting tile: how many frames the burst holds. */
+.tile-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #e8e6df;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .tile-hd {
@@ -532,6 +568,37 @@ img {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-rename {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-rename-input {
+  flex: 0 1 320px;
+  padding: 4px 8px;
+}
+
+.detail-rename-error {
+  color: var(--warn, #c98500);
+  font-size: 0.85em;
+}
+
+.detail-rename-btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dim);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.detail-rename-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
 }
 
 .detail-close {
@@ -851,6 +918,12 @@ img {
   border-color: color-mix(in srgb, #8a63c9 35%, var(--border));
 }
 
+.kind-surveyor {
+  color: #e0bd7f;
+  background: color-mix(in srgb, #cf9435 14%, var(--surface));
+  border-color: color-mix(in srgb, #cf9435 35%, var(--border));
+}
+
 /* Public read-only demo badge (reuses the .kind-badge pill shape) */
 .demo-badge {
   color: var(--warn);
@@ -889,6 +962,21 @@ img {
   align-items: baseline;
   gap: 8px;
   font-size: 0.9rem;
+}
+
+/* capturing fine but pushes failing (bug 5) — the outage mode that hid as "quiet cam" */
+.push-failing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent);
 }
 
 .status-dot {
@@ -1006,6 +1094,163 @@ img {
 .node-detail-sub {
   color: var(--dim);
   font-size: 0.85rem;
+}
+
+.node-captures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.captures-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.captures-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.captures-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.captures-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.captures-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.captures-thumb {
+  flex: 0 0 auto;
+  width: 108px;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.captures-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.captures-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.captures-thumb.placeholder {
+  border-style: dashed;
+}
+
+.captures-empty {
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.captures-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(5, 6, 5, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.captures-lightbox-close {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+}
+
+.captures-lightbox-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  max-width: 100%;
+}
+
+.captures-lightbox-stage img {
+  max-width: min(720px, calc(100vw - 110px));
+  max-height: 70vh;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  /* Mesh thumbs are ~320px wide — scaled up they smooth out badly without this. */
+  image-rendering: auto;
+}
+
+.captures-nav {
+  flex: 0 0 auto;
+}
+
+.captures-lightbox-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.captures-lightbox-count {
+  color: var(--dim);
+}
+
+/* Narrow screens: no room beside the image — float the arrows over it. */
+@media (max-width: 520px) {
+  .captures-lightbox-stage {
+    position: relative;
+  }
+  .captures-lightbox-stage img {
+    max-width: calc(100vw - 40px);
+  }
+  .captures-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    background: rgba(5, 6, 5, 0.55);
+  }
+  .captures-nav:first-child {
+    left: 6px;
+  }
+  .captures-nav:last-child {
+    right: 6px;
+  }
 }
 
 .node-stats {
@@ -1294,6 +1539,12 @@ button.uplink-chip-link:hover {
 .hd-diag-badge.delivered {
   color: #7fb3e5;
   border-color: color-mix(in srgb, #7fb3e5 50%, transparent);
+}
+
+/* node acked receipt over the mesh (bug 8) — a notch warmer than delivered */
+.hd-diag-badge.received {
+  color: #8fd4b8;
+  border-color: color-mix(in srgb, #8fd4b8 50%, transparent);
 }
 
 .hd-diag-badge.done {
@@ -2300,6 +2551,31 @@ button.uplink-chip-link:hover {
   touch-action: none; /* the brush owns horizontal drags */
 }
 
+/* Photos-page activity strip (PhotoTimeline) — survey-timeline visuals in a
+   slimmer frame above the grid, with the active range as a floating chip. */
+.timeline-wrap {
+  position: relative;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 10px 18px 0;
+  width: 100%;
+}
+
+.timeline-wrap .photo-timeline {
+  cursor: crosshair;
+}
+
+.timeline-clear {
+  position: absolute;
+  top: 16px;
+  right: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+}
+
 .survey-bar {
   fill: var(--accent);
   opacity: 0.85;
@@ -2419,8 +2695,8 @@ button.uplink-chip-link:hover {
   font-size: 12px;
 }
 
-/* Survey: collapsed explainer */
-.survey-about {
+/* Collapsed view explainer (survey, nodes) */
+.view-about {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2429,18 +2705,18 @@ button.uplink-chip-link:hover {
   color: var(--dim);
 }
 
-.survey-about summary {
+.view-about summary {
   cursor: pointer;
   color: var(--text);
   font-weight: 600;
 }
 
-.survey-about p {
+.view-about p {
   margin: 8px 0 4px;
   max-width: 72em;
 }
 
-.survey-about a {
+.view-about a {
   color: var(--accent);
 }
 
@@ -2459,4 +2735,182 @@ button.uplink-chip-link:hover {
   max-width: none;
   min-height: 36px;
   padding: 6px 10px;
+}
+
+/* --- Phone shell (≤600px) --------------------------------------------------
+   The header rows and view tabs are built of fixed-width pieces that total
+   more than a ~393px viewport, which dragged the whole app into horizontal
+   scroll on phones. Compact them instead: smaller title, no header marketing
+   link (it stays in the avatar menu), icon-only toggle buttons, and tabs that
+   share the full width. */
+@media (max-width: 600px) {
+  .app-title {
+    font-size: 1.1rem;
+  }
+
+  .get-meshcam {
+    display: none;
+  }
+
+  .btn-label {
+    display: none;
+  }
+
+  .saved-toggle,
+  .select-toggle {
+    padding: 8px 12px;
+  }
+
+  .user-menu-panel {
+    max-width: calc(100vw - 32px);
+  }
+
+  .view-tabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .view-tab {
+    flex: 1 1 0;
+    padding: 0 8px;
+    font-size: 0.9rem;
+    gap: 5px;
+  }
+
+  .camera-select {
+    min-width: 0;
+    max-width: 44vw;
+  }
+
+  /* Mesh traffic rows: the fixed time/node/signal columns left the
+     description ~0px, so its wrapped text painted over the signal. Give the
+     description its own full-width line instead. */
+  .mesh-line {
+    flex-wrap: wrap;
+  }
+
+  .mesh-node {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .mesh-desc {
+    flex: 1 1 100%;
+    order: 5;
+  }
+
+  .mesh-packet {
+    margin-left: 0;
+  }
+}
+
+/* Below ~380px even the compact tabs don't fit with icons; labels win. */
+@media (max-width: 380px) {
+  .view-tab svg {
+    display: none;
+  }
+}
+
+/* --- Feed windowing + time scrubber ---------------------------------------- */
+
+/* Deep feeds stay cheap: offscreen day sections skip render entirely. The
+   `auto` keyword keeps the last-rendered size as the placeholder, so scroll
+   geometry self-corrects instead of drifting on the 600px estimate. */
+.grid-wrap section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
+}
+
+/* The right-edge timeline rail (TimeScrubber). Overlay, not layout: it floats
+   above the feed like a scrollbar. Below the detail overlay (z 100). */
+.scrubber {
+  position: fixed;
+  top: 164px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  right: 0;
+  width: 30px;
+  z-index: 40;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scrubber:active {
+  cursor: grabbing;
+}
+
+.scrubber-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--dim) 55%, transparent);
+}
+
+.scrubber-tick {
+  position: absolute;
+  right: 12px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--dim);
+  white-space: nowrap;
+  pointer-events: none;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+
+.scrubber-marker {
+  position: absolute;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg) 85%, transparent);
+  transition: top 140ms ease-out;
+}
+
+.scrubber-marker.dragging {
+  transition: none;
+  width: 12px;
+  height: 12px;
+  right: 1px;
+}
+
+.scrubber-bubble {
+  position: absolute;
+  right: 28px;
+  transform: translateY(-50%);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+}
+
+/* Anchored feed's way home — floats bottom-center while newer items exist
+   above the loaded window. */
+.jump-latest {
+  position: fixed;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }

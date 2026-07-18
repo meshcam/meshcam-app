@@ -98,6 +98,50 @@ async def test_ack_failed(client, device_token):
     ).json() == []
 
 
+async def test_ack_received_stops_redelivery_but_still_completes(client, device_token):
+    """Bug 8 (2026-07-16): 'delivered' only means the gateway fetched it — commands sat
+    delivered for hours while TXed onto a dead radio profile. The leaf now acks receipt
+    via its announce; received stops redelivery but the fetch_full still finishes via
+    the kind=full ingest, and a late receipt ack never regresses a finished command."""
+    await ingest(client, device_token)
+    photo = await first_photo(client)
+    await client.post(f"/api/v1/photos/{photo['id']}/request-full")
+    headers = {"Authorization": f"Bearer {device_token}"}
+    cmd = (await client.get("/api/v1/commands", headers=headers)).json()[0]
+
+    r = (
+        await client.post(
+            f"/api/v1/commands/{cmd['id']}/ack",
+            json={"status": "received", "detail": "leaf ack via announce"},
+            headers=headers,
+        )
+    ).json()
+    assert r["status"] == "received"
+
+    # received -> no longer redelivered ...
+    assert (await client.get("/api/v1/commands", headers=headers)).json() == []
+    # ... but still in flight for the UI (photo shows the outstanding request) ...
+    assert (await first_photo(client))["full_requested"] is True
+    diag = (await client.get(f"/api/v1/photos/{photo['id']}/full-request")).json()
+    assert diag["status"] == "received"
+    assert diag["received_at"] is not None
+
+    # ... and the kind=full ingest still completes it.
+    await ingest(client, device_token, kind="full")
+    photo = await first_photo(client)
+    assert photo["has_full"] is True and photo["full_requested"] is False
+
+    # A late/duplicate receipt ack must not regress the finished command.
+    r = (
+        await client.post(
+            f"/api/v1/commands/{cmd['id']}/ack",
+            json={"status": "received"},
+            headers=headers,
+        )
+    ).json()
+    assert r["status"] == "done"
+
+
 async def test_stale_commands_expire(client, device_token):
     await ingest(client, device_token)
     photo = await first_photo(client)

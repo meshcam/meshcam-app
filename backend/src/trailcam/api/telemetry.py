@@ -22,6 +22,7 @@ from trailcam.schemas import (
     NodeCommandIn,
     NodeCommandOut,
     NodeHealth,
+    NodeHealthCounters,
     TelemetryAck,
     TelemetryIn,
     TelemetryPoint,
@@ -128,6 +129,13 @@ async def nodes_health(session: AsyncSession = Depends(get_session)):
     ids = [n.id for n in nodes]
 
     latest: dict[int, Telemetry] = {}
+    # Leaf health counters (bug 5): extra.health = since-boot {pir_wakes, captures,
+    # push_fails} from every announce. Keep the newest per node, plus the minimum
+    # push_fails seen in the recent window — latest > min means pushes are actively
+    # failing (a reboot resets the counters to 0, so the min self-adjusts).
+    health_window = utcnow() - timedelta(hours=6)
+    latest_health: dict[int, dict] = {}
+    min_push_fails: dict[int, int] = {}
     if ids:
         rows = await session.scalars(
             select(Telemetry)
@@ -136,6 +144,13 @@ async def nodes_health(session: AsyncSession = Depends(get_session)):
         )
         for t in rows:
             latest.setdefault(t.camera_id, t)
+            h = (t.extra or {}).get("health")
+            if isinstance(h, dict) and t.received_at >= health_window:
+                latest_health.setdefault(t.camera_id, h)
+                pf = h.get("push_fails")
+                if isinstance(pf, int) and pf >= 0:
+                    cur = min_push_fails.get(t.camera_id)
+                    min_push_fails[t.camera_id] = pf if cur is None else min(cur, pf)
 
     last_photo: dict[int, object] = {}
     if ids:
@@ -145,6 +160,12 @@ async def nodes_health(session: AsyncSession = Depends(get_session)):
             .group_by(Photo.camera_id)
         )
         last_photo = dict(rows.all())
+
+    def _push_failing(cam_id: int) -> bool:
+        h = latest_health.get(cam_id)
+        if not h or not isinstance(h.get("push_fails"), int):
+            return False
+        return h["push_fails"] > min_push_fails.get(cam_id, h["push_fails"])
 
     return [
         NodeHealth(
@@ -159,6 +180,12 @@ async def nodes_health(session: AsyncSession = Depends(get_session)):
             latest=(
                 TelemetrySnapshot.model_validate(latest[n.id]) if n.id in latest else None
             ),
+            health=(
+                NodeHealthCounters.model_validate(latest_health[n.id])
+                if n.id in latest_health
+                else None
+            ),
+            push_failing=_push_failing(n.id),
         )
         for n in nodes
     ]
@@ -224,6 +251,7 @@ async def node_commands(
             detail=c.detail,
             created_at=c.created_at,
             delivered_at=c.delivered_at,
+            received_at=c.received_at,
             completed_at=c.completed_at,
         )
         for c in rows

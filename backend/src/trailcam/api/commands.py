@@ -80,7 +80,10 @@ async def _fetch_outstanding(session: AsyncSession, only_pending: bool = False) 
             c.status, c.completed_at = "expired", now
         await session.commit()
 
-    statuses = ("pending",) if only_pending else OUTSTANDING
+    # Redeliver pending/delivered only: "received" means the node confirmed receipt
+    # (bug 8), so re-sending it would just burn the node's announce windows. It stays
+    # in OUTSTANDING above for TTL expiry and ingest auto-completion.
+    statuses = ("pending",) if only_pending else ("pending", "delivered")
     q = (
         select(Command)
         .options(joinedload(Command.camera).joinedload(Camera.site))
@@ -156,10 +159,21 @@ async def ack_command(
     )
     if cmd is None:
         raise HTTPException(404, "command not found")
-    cmd.status = body.status
-    cmd.detail = body.detail
-    cmd.completed_at = utcnow()
-    await session.commit()
+    if body.status == "received":
+        # Leaf receipt ack, relayed by the gateway from the node's announce (bug 8).
+        # Never regress a command that already finished — the ack can arrive after
+        # the kind=full ingest auto-completed it (announce rides behind the upload).
+        if cmd.status in ("pending", "delivered"):
+            cmd.status = "received"
+            cmd.received_at = utcnow()
+            if body.detail:
+                cmd.detail = body.detail
+            await session.commit()
+    else:
+        cmd.status = body.status
+        cmd.detail = body.detail
+        cmd.completed_at = utcnow()
+        await session.commit()
     if cmd.event_id:
         photo_id = await session.scalar(select(Photo.id).where(Photo.event_id == cmd.event_id))
         if photo_id is not None:

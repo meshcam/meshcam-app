@@ -1,6 +1,6 @@
-import { Check, Star } from 'lucide-react'
+import { Check, Star, TriangleAlert } from 'lucide-react'
 import { photoImageUrl } from '../api'
-import { timeAgo } from '../format'
+import { captureSkewDays, timeAgo } from '../format'
 import type { Photo } from '../types'
 
 interface PhotoTileProps {
@@ -49,6 +49,14 @@ export default function PhotoTile({ photo, selecting, selected, onClick }: Photo
         {photo.keep && (
           <span className="tile-star" title="Saved forever">
             <Star size={16} fill="currentColor" />
+          </span>
+        )}
+        {captureSkewDays(photo.captured_at, photo.received_at) > 1 && (
+          <span
+            className="tile-skew"
+            title="Camera clock was un-synced — capture time unreliable (sorted a day+ from when it actually arrived)"
+          >
+            <TriangleAlert size={14} />
           </span>
         )}
       </span>

@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     map_tile_url: str = ""
     map_tile_attribution: str = ""
 
+    # Burst grouping: a capture-time gap longer than this (minutes, per
+    # camera) starts a new sighting. Baked in at ingest — changing it
+    # reshapes future photos only, existing groups keep their boundaries.
+    # 30 matches the survey's session default and, on real field data,
+    # collapsed 1731 photos into 91 scannable sightings (5 min only got 414).
+    sighting_gap_min: int = 30
+
     # Retention: unsaved photos expire this many days after arrival.
     photo_ttl_days: int = 180
     # Telemetry heartbeats age out after this many days (health history only).

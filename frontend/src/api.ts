@@ -4,6 +4,7 @@ import type {
   DeviceToken,
   DeviceTokenCreated,
   FullRequest,
+  HistogramBucket,
   Me,
   NodeCommand,
   NodeCommandKind,
@@ -13,6 +14,7 @@ import type {
   Probe,
   ProbeSession,
   RetentionStats,
+  SightingsPage,
   Site,
   TagCount,
   TelemetrySeries,
@@ -140,10 +142,15 @@ export interface PhotoQuery {
   capturedAfter?: string
   capturedBefore?: string
   before?: string
+  /** Upward cursor — continues a direction=newer walk toward now. */
+  after?: string
+  /** ISO instant to start paging from (instead of the top of the stream). */
+  anchor?: string
+  direction?: 'newer'
   limit?: number
 }
 
-export function getPhotos(query: PhotoQuery): Promise<PhotosPage> {
+function photoParams(query: PhotoQuery): URLSearchParams {
   const params = new URLSearchParams()
   if (query.site) params.set('site', query.site)
   if (query.cameraId != null) params.set('camera_id', query.cameraId)
@@ -152,8 +159,35 @@ export function getPhotos(query: PhotoQuery): Promise<PhotosPage> {
   if (query.capturedAfter) params.set('captured_after', query.capturedAfter)
   if (query.capturedBefore) params.set('captured_before', query.capturedBefore)
   if (query.before) params.set('before', query.before)
+  if (query.after) params.set('after', query.after)
+  if (query.anchor) params.set('anchor', query.anchor)
+  if (query.direction) params.set('direction', query.direction)
   params.set('limit', String(query.limit ?? 50))
-  return request<PhotosPage>(`/api/v1/photos?${params.toString()}`)
+  return params
+}
+
+export function getPhotos(query: PhotoQuery): Promise<PhotosPage> {
+  return request<PhotosPage>(`/api/v1/photos?${photoParams(query).toString()}`)
+}
+
+/** The grouped feed — same filters as getPhotos, one item per burst. */
+export function getSightings(query: PhotoQuery): Promise<SightingsPage> {
+  return request<SightingsPage>(`/api/v1/sightings?${photoParams(query).toString()}`)
+}
+
+/** Every frame of one sighting, capture-chronological — the detail pager. */
+export function getSightingPhotos(id: string): Promise<Photo[]> {
+  return request<Photo[]>(`/api/v1/sightings/${encodeURIComponent(id)}/photos`)
+}
+
+/** Hourly capture counts under the active filters — the activity strip. */
+export function getPhotosHistogram(
+  query: Pick<PhotoQuery, 'site' | 'cameraId' | 'kept' | 'tag'>,
+): Promise<HistogramBucket[]> {
+  const params = photoParams(query)
+  params.delete('limit')
+  const qs = params.toString()
+  return request<HistogramBucket[]>(`/api/v1/photos/histogram${qs ? `?${qs}` : ''}`)
 }
 
 /** Fetch a single photo by id — used for deep links before the feed loads. */

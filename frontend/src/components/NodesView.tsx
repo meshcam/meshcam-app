@@ -119,6 +119,29 @@ export default function NodesView({ sites, nodeId, demo, onUnauthorized }: Nodes
 
   return (
     <main className="grid-wrap nodes-wrap">
+      <details className="view-about">
+        <summary>What are nodes?</summary>
+        <p>
+          Every LoRa device in the mesh: <b>cameras</b> take the photos,{' '}
+          <b>relays</b> re-broadcast to stretch coverage, and the <b>gateway</b>{' '}
+          bridges the mesh to this server. Nothing is registered by hand — a
+          node exists here because it was heard from (first photo or telemetry
+          heartbeat), and battery, temperature and signal ride along on every
+          check-in.
+        </p>
+        <p>
+          Status is time-since-last-heard: <b>OK</b> under 24&nbsp;h,{' '}
+          <b>Quiet</b> 24–48&nbsp;h, <b>Dark</b> past 48&nbsp;h — problems sort
+          to the top of each site. Battery colours use LiFePO4 thresholds
+          (≥3.25&nbsp;V healthy, below 3.0&nbsp;V critical). Open a card for
+          telemetry history and operator commands (maintenance window, sleep,
+          firmware update); commands are <b>pull-based</b> — nodes sleep
+          between check-ins, so queued work takes effect at the next contact,
+          not instantly. The mesh feed below is the raw radio traffic as the
+          gateway hears it, newest first.
+        </p>
+      </details>
+
       <div className="nodes-toolbar">
         <button
           type="button"
@@ -184,6 +207,9 @@ export default function NodesView({ sites, nodeId, demo, onUnauthorized }: Nodes
           demo={demo}
           onClose={() => closeOverlay(nodesUrl())}
           onUnauthorized={onUnauthorized}
+          onRenamed={(id, name) =>
+            setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, name } : n)))
+          }
         />
       )}
     </main>

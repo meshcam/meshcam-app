@@ -2,11 +2,11 @@ import { ImageOff } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 import { dayLabel, easternDayKey } from '../format'
 import { usePrependCompensation } from '../scroll'
-import type { Photo } from '../types'
-import PhotoTile from './PhotoTile'
+import type { Sighting } from '../types'
+import SightingTile from './SightingTile'
 
-interface PhotoGridProps {
-  photos: Photo[]
+interface SightingGridProps {
+  sightings: Sighting[]
   loading: boolean
   hasMore: boolean
   /** Anchored feed: newer items exist above what's loaded (time-scrubber jump). */
@@ -16,20 +16,23 @@ interface PhotoGridProps {
   onLoadMore: () => void
   onLoadMoreUp: () => void
   onRetry: () => void
-  onSelect: (id: string) => void
+  onSelect: (sighting: Sighting) => void
   selecting: boolean
   selectedIds: ReadonlySet<string>
-  onToggleSelect: (id: string) => void
+  onToggleSelect: (sighting: Sighting) => void
 }
 
 interface DayGroup {
   day: string
   label: string
-  photos: Photo[]
+  sightings: Sighting[]
 }
 
-export default function PhotoGrid({
-  photos,
+/** The grouped feed — PhotoGrid's shape (day headings by consecutive run,
+ *  sentinel-driven infinite scroll) over sighting tiles. Kept separate from
+ *  PhotoGrid on purpose: the flat feed stays untouched for ?flat=1. */
+export default function SightingGrid({
+  sightings,
   loading,
   hasMore,
   hasMoreUp,
@@ -42,7 +45,7 @@ export default function PhotoGrid({
   selecting,
   selectedIds,
   onToggleSelect,
-}: PhotoGridProps) {
+}: SightingGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
 
@@ -73,33 +76,33 @@ export default function PhotoGrid({
   }, [hasMoreUp, onLoadMoreUp])
 
   usePrependCompensation(
-    useMemo(() => photos.map((p) => p.id), [photos]),
+    useMemo(() => sightings.map((s) => s.id), [sightings]),
     hasMoreUp,
   )
 
-  // Consecutive-run grouping by Eastern capture day. The feed is ordered by
-  // arrival, so a store-and-forward straggler can repeat a day header — that's
-  // honest ("these came in later") and keeps the feed order stable.
+  // Consecutive-run grouping by the sighting's first-frame Eastern day; the
+  // feed is arrival-ordered, so a straggler-resurfaced sighting can repeat a
+  // day header — honest, same as PhotoGrid.
   const groups = useMemo<DayGroup[]>(() => {
     const out: DayGroup[] = []
     let lastKey: string | null = null
-    for (const photo of photos) {
-      const key = easternDayKey(photo.captured_at)
+    for (const s of sightings) {
+      const key = easternDayKey(s.started_at)
       if (key === lastKey && out.length > 0) {
-        out[out.length - 1].photos.push(photo)
+        out[out.length - 1].sightings.push(s)
       } else {
-        out.push({ day: key, label: dayLabel(photo.captured_at), photos: [photo] })
+        out.push({ day: key, label: dayLabel(s.started_at), sightings: [s] })
         lastKey = key
       }
     }
     return out
-  }, [photos])
+  }, [sightings])
 
-  const isEmpty = !loading && !error && photos.length === 0 && !hasMore && !hasMoreUp
+  const isEmpty = !loading && !error && sightings.length === 0 && !hasMore && !hasMoreUp
 
   return (
     <main className="grid-wrap">
-      {hasMoreUp && photos.length > 0 && (
+      {hasMoreUp && sightings.length > 0 && (
         <div ref={topSentinelRef} className="grid-sentinel" aria-hidden="true" />
       )}
       {loadingUp && (
@@ -108,22 +111,19 @@ export default function PhotoGrid({
           <span>Loading newer…</span>
         </div>
       )}
-      {/* Keyed by first-member id, not index: prepended pages must not shift
-          every section's key and remount the whole feed (which also tears out
-          the DOM node the prepend compensation is measuring against). */}
+      {/* Keyed by first-member id, not index — see PhotoGrid: index keys make
+          prepends remount every section. */}
       {groups.map((group) => (
-        <section key={group.photos[0].id} aria-label={group.label} data-day={group.day}>
+        <section key={group.sightings[0].id} aria-label={group.label} data-day={group.day}>
           <h2 className="day-heading">{group.label}</h2>
           <div className="photo-grid">
-            {group.photos.map((photo) => (
-              <PhotoTile
-                key={photo.id}
-                photo={photo}
+            {group.sightings.map((s) => (
+              <SightingTile
+                key={s.id}
+                sighting={s}
                 selecting={selecting}
-                selected={selectedIds.has(photo.id)}
-                onClick={() =>
-                  selecting ? onToggleSelect(photo.id) : onSelect(photo.id)
-                }
+                selected={selectedIds.has(s.id)}
+                onClick={() => (selecting ? onToggleSelect(s) : onSelect(s))}
               />
             ))}
           </div>

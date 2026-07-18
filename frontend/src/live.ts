@@ -12,7 +12,14 @@ type Handler = (data: unknown) => void
 
 /** Every event type the server emits — the leader must relay all of them,
  * not just the ones this particular tab has local subscribers for. */
-const EVENT_TYPES = ['photo', 'photo_removed', 'request', 'node', 'mesh'] as const
+const EVENT_TYPES = [
+  'photo',
+  'photo_removed',
+  'sighting_merge',
+  'request',
+  'node',
+  'mesh',
+] as const
 
 const CHANNEL = 'trailcam-live'
 const LEADER_LOCK = 'trailcam-sse-leader'

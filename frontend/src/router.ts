@@ -25,6 +25,10 @@ export interface Route {
   keptOnly: boolean
   date: string | null
   tag: string | null
+  flat: boolean
+  from: string | null
+  to: string | null
+  at: string | null
   survey: SurveyQuery
 }
 
@@ -68,6 +72,17 @@ export interface FeedFilters {
   date: string | null
   /** Tag slug — filters the feed to photos carrying that tag. */
   tag: string | null
+  /** Ungrouped feed (every frame its own tile); grouped sightings are the default. */
+  flat: boolean
+  /** Timeline-brushed capture range (ISO instants); wins over `date` in the UI. */
+  from: string | null
+  to: string | null
+  /**
+   * Scrubber anchor (ISO instant): the feed starts mid-stream at this arrival
+   * time and pages both directions from it. Not a filter — every photo stays
+   * reachable — so matchesFilters ignores it.
+   */
+  at: string | null
 }
 
 /** Dispatched after every programmatic navigate() so subscribers re-read the URL. */
@@ -98,7 +113,12 @@ function parseFilters(search: string): FeedFilters {
   const dateRaw = params.get('date')
   const date = dateRaw !== null && /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : null
   const tag = params.get('tag') || null
-  return { site, cameraId, keptOnly, date, tag }
+  const flat = params.get('flat') === '1'
+  const isoOk = (v: string | null) => (v !== null && !Number.isNaN(Date.parse(v)) ? v : null)
+  const from = isoOk(params.get('from'))
+  const to = isoOk(params.get('to'))
+  const at = isoOk(params.get('at'))
+  return { site, cameraId, keptOnly, date, tag, flat, from, to, at }
 }
 
 function intParam(params: URLSearchParams, key: string): number | null {
@@ -173,7 +193,7 @@ function tryParse(pathname: string, search: string): Route | null {
 // repeated getSnapshot() calls return a referentially stable Route and
 // useSyncExternalStore doesn't loop or re-render without a real change.
 let cachedHref: string | null = null
-let cachedRoute: Route = { view: 'photos', photoId: null, nodeId: null, site: null, cameraId: null, keptOnly: false, date: null, tag: null, survey: EMPTY_SURVEY }
+let cachedRoute: Route = { view: 'photos', photoId: null, nodeId: null, site: null, cameraId: null, keptOnly: false, date: null, tag: null, flat: false, from: null, to: null, at: null, survey: EMPTY_SURVEY }
 
 function getSnapshot(): Route {
   if (cachedHref !== location.href) {
@@ -246,6 +266,10 @@ function feedSearch(filters: FeedFilters): string {
   if (filters.keptOnly) params.set('saved', '1')
   if (filters.date) params.set('date', filters.date)
   if (filters.tag) params.set('tag', filters.tag)
+  if (filters.flat) params.set('flat', '1')
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to) params.set('to', filters.to)
+  if (filters.at) params.set('at', filters.at)
   const qs = params.toString()
   return qs ? `?${qs}` : ''
 }

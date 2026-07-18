@@ -1,11 +1,11 @@
 import base64
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import case, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -18,10 +18,13 @@ from trailcam.refs import resolve_uuid_ref
 from trailcam.s3 import get_store, raw_variant
 from trailcam.schemas import (
     FullRequestOut,
+    HistogramBucketOut,
     KeepIn,
     PhotoOut,
     PhotoPage,
     RequestFullIn,
+    SightingOut,
+    SightingPage,
     TagCountOut,
     TagIn,
     TagOut,
@@ -38,6 +41,7 @@ def _photo_out(p: Photo, requested: set[str] | None = None) -> PhotoOut:
     return PhotoOut(
         id=p.id,
         event_id=p.event_id,
+        sighting_id=p.sighting_id,
         camera_id=p.camera.public_id,
         camera_name=p.camera.name,
         site_slug=p.camera.site.slug,
@@ -70,8 +74,8 @@ async def _outstanding_full_requests(session: AsyncSession, photos: list[Photo])
     return set(rows.all())
 
 
-def _encode_cursor(p: Photo) -> str:
-    return base64.urlsafe_b64encode(f"{p.received_at.isoformat()}|{p.id}".encode()).decode()
+def _encode_cursor(ts: datetime, ref: uuid.UUID) -> str:
+    return base64.urlsafe_b64encode(f"{ts.isoformat()}|{ref}".encode()).decode()
 
 
 def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
@@ -92,6 +96,43 @@ async def _get_photo(session: AsyncSession, photo_ref: str) -> Photo:
     )
 
 
+async def _photo_criteria(
+    session: AsyncSession,
+    site: str | None,
+    camera_id: str | None,
+    kept: bool | None,
+    tag: str | None,
+    captured_after: datetime | None,
+    captured_before: datetime | None,
+) -> list:
+    """The feed's filter set as pure WHERE criteria on Photo columns
+    (IN-subqueries instead of joins) so the same list composes unchanged
+    into the flat feed, the GROUP BY sightings feed, and the histogram."""
+    crit = []
+    if site:
+        crit.append(
+            Photo.camera_id.in_(select(Camera.id).join(Camera.site).where(Site.slug == site))
+        )
+    if camera_id is not None:
+        cam = await resolve_uuid_ref(session, select(Camera), Camera.public_id, camera_id, "camera")
+        crit.append(Photo.camera_id == cam.id)
+    if kept:
+        crit.append(Photo.keep.is_(True))
+    if tag:
+        crit.append(
+            Photo.id.in_(
+                select(photo_tags.c.photo_id)
+                .join(Tag, Tag.id == photo_tags.c.tag_id)
+                .where(Tag.slug == tag)
+            )
+        )
+    if captured_after is not None:
+        crit.append(Photo.captured_at >= captured_after)
+    if captured_before is not None:
+        crit.append(Photo.captured_at < captured_before)
+    return crit
+
+
 @router.get("/photos", response_model=PhotoPage)
 async def list_photos(
     site: str | None = None,
@@ -101,6 +142,9 @@ async def list_photos(
     captured_after: datetime | None = None,
     captured_before: datetime | None = None,
     before: str | None = None,
+    after: str | None = None,
+    anchor: datetime | None = None,
+    direction: str = "older",
     limit: int = 50,
     session: AsyncSession = Depends(get_session),
 ):
@@ -109,38 +153,204 @@ async def list_photos(
     # the only monotonic truth. captured_at is display metadata — but it IS what
     # the captured_after/before window filters on, because "what moved Tuesday
     # night" is a question about capture time, drift and all.
+    #
+    # Bidirectional paging (the time scrubber): `anchor` starts a page at an
+    # arbitrary instant in the stream instead of the top, and direction=newer /
+    # an `after` cursor walk it back toward now. anchor partitions cleanly —
+    # received_at < anchor goes down, >= anchor goes up — so the two directions
+    # never overlap. Items are always newest-first; next_cursor continues
+    # whichever direction was queried.
     limit = min(max(limit, 1), 200)
+    newer = after is not None or direction == "newer"
     q = (
         select(Photo)
         .options(joinedload(Photo.camera).joinedload(Camera.site))
-        .order_by(Photo.received_at.desc(), Photo.id.desc())
+        .where(*await _photo_criteria(
+            session, site, camera_id, kept, tag, captured_after, captured_before
+        ))
         .limit(limit + 1)
     )
-    if site:
-        q = q.join(Photo.camera).join(Camera.site).where(Site.slug == site)
-    if camera_id is not None:
-        cam = await resolve_uuid_ref(session, select(Camera), Camera.public_id, camera_id, "camera")
-        q = q.where(Photo.camera_id == cam.id)
-    if kept:
-        q = q.where(Photo.keep.is_(True))
-    if tag:
-        q = q.join(photo_tags, photo_tags.c.photo_id == Photo.id).join(
-            Tag, Tag.id == photo_tags.c.tag_id
-        ).where(Tag.slug == tag)
-    if captured_after is not None:
-        q = q.where(Photo.captured_at >= captured_after)
-    if captured_before is not None:
-        q = q.where(Photo.captured_at < captured_before)
-    if before:
-        ts, pid = _decode_cursor(before)
-        q = q.where(tuple_(Photo.received_at, Photo.id) < (ts, pid))
+    if newer:
+        q = q.order_by(Photo.received_at.asc(), Photo.id.asc())
+        if after:
+            ts, pid = _decode_cursor(after)
+            q = q.where(tuple_(Photo.received_at, Photo.id) > (ts, pid))
+        elif anchor is not None:
+            q = q.where(Photo.received_at >= anchor)
+    else:
+        q = q.order_by(Photo.received_at.desc(), Photo.id.desc())
+        if before:
+            ts, pid = _decode_cursor(before)
+            q = q.where(tuple_(Photo.received_at, Photo.id) < (ts, pid))
+        elif anchor is not None:
+            q = q.where(Photo.received_at < anchor)
     rows = (await session.scalars(q)).all()
     page, more = rows[:limit], len(rows) > limit
+    edge = page[-1] if page else None  # last row in scan order = where the cursor resumes
+    if newer:
+        page = list(reversed(page))
     requested = await _outstanding_full_requests(session, page)
     return PhotoPage(
         items=[_photo_out(p, requested) for p in page],
-        next_cursor=_encode_cursor(page[-1]) if more and page else None,
+        next_cursor=_encode_cursor(edge.received_at, edge.id) if more and edge else None,
     )
+
+
+@router.get("/photos/histogram", response_model=list[HistogramBucketOut])
+async def photos_histogram(
+    site: str | None = None,
+    camera_id: str | None = None,
+    kept: bool | None = None,
+    tag: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """Hourly capture counts under the active filters — the data behind the
+    photos-page activity strip (which re-buckets to screen resolution and
+    owns the timezone question; UTC hours re-bucket cleanly into any
+    whole-hour zone). Declared before /photos/{photo_ref} so "histogram"
+    never parses as a ref. Bucketing is Python-side: portable across
+    SQLite/Postgres (same tradeoff as 0008's backfill filter), and one
+    timestamp column for a season of photos is a small fetch."""
+    crit = await _photo_criteria(session, site, camera_id, kept, tag, None, None)
+    counts: dict[datetime, int] = {}
+    for t in (await session.scalars(select(Photo.captured_at).where(*crit))).all():
+        t = t.replace(tzinfo=UTC) if t.tzinfo is None else t.astimezone(UTC)
+        hour = t.replace(minute=0, second=0, microsecond=0)
+        counts[hour] = counts.get(hour, 0) + 1
+    return [HistogramBucketOut(hour=h, count=c) for h, c in sorted(counts.items())]
+
+
+# --- Sightings ------------------------------------------------------------------
+#
+# The grouped feed: one item per burst (models.Photo.sighting_id). Same
+# filters and the same arrival-order invariant as /photos — a sighting sorts
+# by the newest arrival among its matching frames, so a straggler surfaces
+# its whole visit at the top, honestly. Filter-then-group on purpose: under
+# kept=1 or tag=, count/cover reflect the matching frames only ("show me
+# saved bucks" works with no special casing).
+
+
+@router.get("/sightings", response_model=SightingPage)
+async def list_sightings(
+    site: str | None = None,
+    camera_id: str | None = None,
+    kept: bool | None = None,
+    tag: str | None = None,
+    captured_after: datetime | None = None,
+    captured_before: datetime | None = None,
+    before: str | None = None,
+    after: str | None = None,
+    anchor: datetime | None = None,
+    direction: str = "older",
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+):
+    limit = min(max(limit, 1), 200)
+    newer = after is not None or direction == "newer"
+    crit = await _photo_criteria(
+        session, site, camera_id, kept, tag, captured_after, captured_before
+    )
+    last_received = func.max(Photo.received_at).label("last_received_at")
+    agg = (
+        select(
+            Photo.sighting_id,
+            func.count().label("count"),
+            func.sum(case((Photo.keep.is_(True), 1), else_=0)).label("kept_count"),
+            func.min(Photo.captured_at).label("started_at"),
+            func.max(Photo.captured_at).label("ended_at"),
+            last_received,
+        )
+        .where(*crit)
+        .group_by(Photo.sighting_id)
+        .limit(limit + 1)
+    )
+    # A sighting sorts by its newest matching frame, so anchor partitions on
+    # max(received_at): a burst straddling the anchor lands on the newer side,
+    # whole — never split, never doubled.
+    if newer:
+        agg = agg.order_by(last_received.asc(), Photo.sighting_id.asc())
+        if after:
+            ts, sid = _decode_cursor(after)
+            agg = agg.having(tuple_(func.max(Photo.received_at), Photo.sighting_id) > (ts, sid))
+        elif anchor is not None:
+            agg = agg.having(func.max(Photo.received_at) >= anchor)
+    else:
+        agg = agg.order_by(last_received.desc(), Photo.sighting_id.desc())
+        if before:
+            ts, sid = _decode_cursor(before)
+            agg = agg.having(tuple_(func.max(Photo.received_at), Photo.sighting_id) < (ts, sid))
+        elif anchor is not None:
+            agg = agg.having(func.max(Photo.received_at) < anchor)
+    rows = (await session.execute(agg)).all()
+    page, more = rows[:limit], len(rows) > limit
+    edge = page[-1] if page else None
+    if newer:
+        page = list(reversed(page))
+
+    # Covers: earliest-captured matching frame of each page sighting (the
+    # burst usually opens with the animal entering frame).
+    rn = (
+        func.row_number()
+        .over(partition_by=Photo.sighting_id, order_by=(Photo.captured_at.asc(), Photo.id.asc()))
+        .label("rn")
+    )
+    sub = (
+        select(Photo.id.label("pid"), rn)
+        .where(Photo.sighting_id.in_([r.sighting_id for r in page]), *crit)
+        .subquery()
+    )
+    covers = (
+        await session.scalars(
+            select(Photo)
+            .options(joinedload(Photo.camera).joinedload(Camera.site))
+            .where(Photo.id.in_(select(sub.c.pid).where(sub.c.rn == 1)))
+        )
+    ).all()
+    requested = await _outstanding_full_requests(session, covers)
+    cover_by_sid = {p.sighting_id: p for p in covers}
+    items = []
+    for r in page:
+        cover = cover_by_sid[r.sighting_id]
+        items.append(
+            SightingOut(
+                id=r.sighting_id,
+                camera_id=cover.camera.public_id,
+                camera_name=cover.camera.name,
+                site_slug=cover.camera.site.slug,
+                count=r.count,
+                kept_count=r.kept_count or 0,
+                started_at=r.started_at,
+                ended_at=r.ended_at,
+                last_received_at=r.last_received_at,
+                cover=_photo_out(cover, requested),
+            )
+        )
+    return SightingPage(
+        items=items,
+        next_cursor=(
+            _encode_cursor(edge.last_received_at, edge.sighting_id) if more and edge else None
+        ),
+    )
+
+
+@router.get("/sightings/{sighting_id}/photos", response_model=list[PhotoOut])
+async def sighting_photos(sighting_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+    """Every frame of one sighting, chronological — powers the tap-to-expand
+    detail pager. Unfiltered on purpose: whatever subset put the sighting on
+    screen, opening it means "show me this whole visit". Bounded by the gap
+    rule (no pagination; the worst real burst seen is ~170 frames)."""
+    photos = (
+        await session.scalars(
+            select(Photo)
+            .options(joinedload(Photo.camera).joinedload(Camera.site))
+            .where(Photo.sighting_id == sighting_id)
+            .order_by(Photo.captured_at.asc(), Photo.id.asc())
+        )
+    ).all()
+    if not photos:
+        raise HTTPException(404, "unknown sighting")
+    requested = await _outstanding_full_requests(session, photos)
+    return [_photo_out(p, requested) for p in photos]
 
 
 @router.get("/photos/{photo_ref}", response_model=PhotoOut)
@@ -169,6 +379,7 @@ async def full_request_status(photo_ref: str, session: AsyncSession = Depends(ge
         requested_by=cmd.requested_by,
         created_at=cmd.created_at,
         delivered_at=cmd.delivered_at,
+        received_at=cmd.received_at,
         completed_at=cmd.completed_at,
         detail=cmd.detail,
         node_last_seen_at=photo.camera.last_seen_at,
@@ -348,11 +559,18 @@ async def remove_photo_tag(
 async def delete_photo(photo_ref: str, session: AsyncSession = Depends(get_session)):
     photo = await _get_photo(session, photo_ref)
     photo_id = photo.id  # canonical (photo_ref may be a prefix); unreadable post-delete
+    sighting_id = photo.sighting_id
     keys = [k for k in (photo.thumb_key, photo.full_key) if k]
     if photo.full_key:
         keys.append(raw_variant(photo.full_key))
     await get_store().delete(keys)
     await session.delete(photo)
     await session.commit()
-    bus.publish(FEED, {"event": "photo_removed", "data": {"id": str(photo_id)}})
+    bus.publish(
+        FEED,
+        {
+            "event": "photo_removed",
+            "data": {"id": str(photo_id), "sighting_id": str(sighting_id)},
+        },
+    )
     return Response(status_code=204)

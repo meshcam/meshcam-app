@@ -246,7 +246,7 @@ export default function SurveyView({ me, demo, query, onUnauthorized }: SurveyVi
 
   return (
     <div className="survey-view">
-      <details className="survey-about">
+      <details className="view-about">
         <summary>What is the survey map?</summary>
         <p>
           A <b>surveyor</b> is a handheld LoRa probe you walk the property
