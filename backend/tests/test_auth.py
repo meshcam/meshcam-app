@@ -1,8 +1,9 @@
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 import trailcam.db as dbmod
-from trailcam.auth import current_user, hash_token, mint_token
-from trailcam.config import get_settings
+from trailcam.auth import current_user, hash_token, mint_token, oauth
+from trailcam.config import Settings, get_settings
 from trailcam.main import create_app
 from trailcam.models import Base
 
@@ -114,3 +115,86 @@ async def test_demo_blocks_writes(demo_client):
 
     r = await demo_client.post("/api/v1/photos/whatever/keep", json={"keep": True})
     assert r.status_code == 403
+
+
+# --- Login allowlist (TRAILCAM_ALLOWED_EMAILS) --------------------------------
+
+
+def test_allowed_emails_set_parses_and_normalizes():
+    s = Settings(allowed_emails=" Alice@Example.com, bob@example.com ,, ")
+    assert s.allowed_emails_set == {"alice@example.com", "bob@example.com"}
+
+
+def test_allowed_emails_set_empty_by_default():
+    assert Settings(allowed_emails="").allowed_emails_set == set()
+
+
+@pytest.fixture()
+def allowed_emails(monkeypatch):
+    def _set(value: str) -> None:
+        monkeypatch.setenv("TRAILCAM_ALLOWED_EMAILS", value)
+        get_settings.cache_clear()
+
+    yield _set
+    get_settings.cache_clear()  # restore the no-allowlist default for later tests
+
+
+def _fake_oidc_login(email: str, name: str = "Someone"):
+    async def _authorize_access_token(request):
+        return {"userinfo": {"email": email, "name": name}}
+
+    return _authorize_access_token
+
+
+@pytest.fixture()
+async def real_auth_client(store):
+    # Mirrors conftest's `app`/`client` fixtures but WITHOUT the current_user
+    # override — these tests exercise the real /auth/callback session-creation
+    # path, with only oauth.oidc.authorize_access_token faked out.
+    if dbmod._engine is not None:
+        await dbmod._engine.dispose()
+    dbmod._engine = None
+    dbmod._sessionmaker = None
+    application = create_app()
+    async with dbmod.get_engine().begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as c:
+        yield c
+
+
+async def test_callback_admits_any_email_when_allowlist_unset(monkeypatch, real_auth_client):
+    login = _fake_oidc_login("anyone@example.com")
+    monkeypatch.setattr(oauth.oidc, "authorize_access_token", login)
+    r = await real_auth_client.get("/auth/callback")
+    assert r.status_code in (302, 307)
+    me = await real_auth_client.get("/api/v1/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == "anyone@example.com"
+
+
+async def test_callback_rejects_email_not_in_allowlist(
+    monkeypatch, allowed_emails, real_auth_client
+):
+    allowed_emails("alice@example.com,bob@example.com")
+    login = _fake_oidc_login("mallory@example.com")
+    monkeypatch.setattr(oauth.oidc, "authorize_access_token", login)
+    r = await real_auth_client.get("/auth/callback")
+    assert r.status_code == 403
+    # No session was established — the callback rejected before writing one.
+    assert (await real_auth_client.get("/api/v1/me")).status_code == 401
+
+
+async def test_callback_admits_email_in_allowlist_case_insensitive(
+    monkeypatch, allowed_emails, real_auth_client
+):
+    allowed_emails("alice@example.com")
+    monkeypatch.setattr(
+        oauth.oidc, "authorize_access_token", _fake_oidc_login("Alice@Example.com", name="Alice")
+    )
+    r = await real_auth_client.get("/auth/callback")
+    assert r.status_code in (302, 307)
+    me = await real_auth_client.get("/api/v1/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == "Alice@Example.com"

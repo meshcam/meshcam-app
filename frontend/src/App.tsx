@@ -706,14 +706,62 @@ export default function App() {
     if (photoId === null) setSightingPhotos(null)
   }, [photoId])
 
-  // Prefetch the next page while paging through the overlay near the end
-  // (flat only — grouped paging stays inside one already-complete sighting).
+  // Where the open photo's sighting sits in the grouped feed — the pivot for
+  // paging the overlay ACROSS sightings, not just within one burst.
+  const sightingIndex = useMemo(() => {
+    if (flat || !selected) return -1
+    return sightings.findIndex((s) => s.id === selected.sighting_id)
+  }, [flat, selected, sightings])
+
+  // Prefetch the next page while paging through the overlay near the end —
+  // by photo in flat mode, by sighting in grouped mode.
   useEffect(() => {
-    if (!flat || selectedIndex < 0) return
-    if (selectedIndex >= photos.length - PREFETCH_MARGIN && hasMore && !loading) {
+    if (flat) {
+      if (selectedIndex < 0) return
+      if (selectedIndex >= photos.length - PREFETCH_MARGIN && hasMore && !loading) {
+        void loadPhotos(false)
+      }
+      return
+    }
+    if (sightingIndex < 0) return
+    if (sightingIndex >= sightings.length - PREFETCH_MARGIN && hasMore && !loading) {
       void loadPhotos(false)
     }
-  }, [flat, selectedIndex, photos.length, hasMore, loading, loadPhotos])
+  }, [
+    flat,
+    selectedIndex,
+    photos.length,
+    sightingIndex,
+    sightings.length,
+    hasMore,
+    loading,
+    loadPhotos,
+  ])
+
+  // Arrow past a burst's edge: continue into the neighboring sighting.
+  // Forward lands on its first frame (the cover); backward fetches the
+  // members first so it can land on the LAST frame, the way stepping
+  // backward through a stream should.
+  const openAdjacentSighting = useCallback(
+    async (dir: -1 | 1) => {
+      if (sightingIndex < 0) return
+      const target = sightings[sightingIndex + dir]
+      if (!target) return
+      if (dir === 1) {
+        navigate(photoUrl(target.cover.id, filters), { replace: true })
+        return
+      }
+      try {
+        const members = await api.getSightingPhotos(target.id)
+        if (members.length === 0) return
+        setSightingPhotos({ sid: target.id, photos: members })
+        navigate(photoUrl(members[members.length - 1].id, filters), { replace: true })
+      } catch (err: unknown) {
+        if (err instanceof UnauthorizedError) handleUnauthorized()
+      }
+    },
+    [sightingIndex, sightings, filters, handleUnauthorized],
+  )
 
   const openPhoto = useCallback(
     (id: string) => {
@@ -735,14 +783,18 @@ export default function App() {
   const showPrev = useCallback(() => {
     if (selectedIndex > 0) {
       navigate(photoUrl(pagingList[selectedIndex - 1].id, filters), { replace: true })
+    } else if (!flat) {
+      void openAdjacentSighting(-1)
     }
-  }, [selectedIndex, pagingList, filters])
+  }, [selectedIndex, pagingList, filters, flat, openAdjacentSighting])
 
   const showNext = useCallback(() => {
     if (selectedIndex >= 0 && selectedIndex < pagingList.length - 1) {
       navigate(photoUrl(pagingList[selectedIndex + 1].id, filters), { replace: true })
+    } else if (!flat) {
+      void openAdjacentSighting(1)
     }
-  }, [selectedIndex, pagingList, filters])
+  }, [selectedIndex, pagingList, filters, flat, openAdjacentSighting])
 
   const closeDetail = useCallback(() => {
     closeOverlay(feedUrl(filters))
@@ -1105,9 +1157,10 @@ export default function App() {
           onClear={() => handleRangeChange(null, null)}
         />
       )}
-      {view === 'photos' && !selected && (
-        <TimeScrubber buckets={histogram} onJump={handleJump} />
-      )}
+      {/* Mounted even under the detail overlay (which covers it at z 100):
+          unmounting would flap the hidden-native-scrollbar state and reflow
+          the feed behind the overlay on every open/close. */}
+      {view === 'photos' && <TimeScrubber buckets={histogram} onJump={handleJump} />}
       {view === 'photos' && at !== null && hasMoreUp && (
         <button type="button" className="btn jump-latest" onClick={jumpToLatest}>
           <ChevronsUp size={14} aria-hidden="true" />
@@ -1184,8 +1237,11 @@ export default function App() {
         <PhotoDetail
           photo={selected}
           demo={demo}
-          hasPrev={selectedIndex > 0}
-          hasNext={inFeed && selectedIndex < pagingList.length - 1}
+          hasPrev={selectedIndex > 0 || (!flat && sightingIndex > 0)}
+          hasNext={
+            (inFeed && selectedIndex < pagingList.length - 1) ||
+            (!flat && sightingIndex >= 0 && sightingIndex < sightings.length - 1)
+          }
           onPrev={showPrev}
           onNext={showNext}
           onClose={closeDetail}

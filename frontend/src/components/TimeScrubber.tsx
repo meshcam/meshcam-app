@@ -134,6 +134,15 @@ export default function TimeScrubber({ buckets, onJump }: TimeScrubberProps) {
   const [markerFrac, setMarkerFrac] = useState(0)
   const [dragFrac, setDragFrac] = useState<number | null>(null)
 
+  // While the rail is up it IS the scrollbar — hide the native one so two
+  // vertical indicators don't compete for the same edge (styles.css keys off
+  // this class). Wheel/trackpad/keyboard scrolling are unaffected.
+  useEffect(() => {
+    if (!map) return
+    document.documentElement.classList.add('has-scrubber')
+    return () => document.documentElement.classList.remove('has-scrubber')
+  }, [map])
+
   // Follow the scroll: the topmost visible day section drives the marker.
   useEffect(() => {
     if (!map) return

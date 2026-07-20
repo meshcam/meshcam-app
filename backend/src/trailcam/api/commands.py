@@ -12,7 +12,7 @@ automatically when the matching kind=full ingest arrives."""
 
 import asyncio
 import json
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,6 +30,17 @@ from trailcam.schemas import CommandAck, CommandOut
 router = APIRouter(prefix="/api/v1", tags=["commands"], dependencies=[Depends(current_device)])
 
 SSE_KEEPALIVE_S = 25
+
+# Received-fetch_full recovery (2026-07-19). A receipt ack stops redelivery (bug 8)
+# and only a kind=full ingest completes the command — two air-verified shapes fall
+# through that gap (2026-07-18, commands 80/81 in trailcam-dev):
+#   1. the transfer ABORTS after the receipt ack -> nothing ever retries it;
+#   2. the leaf dedup-SKIPS the send (gateway already holds the full, "have?"
+#      protocol) -> no new ingest ever fires, so the command never completes.
+# Redelivery is cheap now precisely because of the dedup protocol: a re-asked leaf
+# either skips outright or resumes only the missing chunks.
+FETCH_RETRY_AFTER = timedelta(minutes=15)   # leaf silence before a redelivery
+FETCH_RETRY_MAX = 3                         # redeliveries before giving up
 
 
 def _command_out(c: Command) -> CommandOut:
@@ -80,9 +91,64 @@ async def _fetch_outstanding(session: AsyncSession, only_pending: bool = False) 
             c.status, c.completed_at = "expired", now
         await session.commit()
 
+    # Received-fetch_full sweep (see FETCH_RETRY_* above): complete the satisfied,
+    # requeue the stalled, expire the hopeless. Runs on the device poll because
+    # that's exactly when redelivery is possible.
+    now = utcnow()
+    received = list(
+        (
+            await session.scalars(
+                select(Command).where(
+                    Command.kind == "fetch_full", Command.status == "received"
+                )
+            )
+        ).all()
+    )
+    if received:
+        eids = [c.event_id for c in received if c.event_id]
+        have_full: set[str] = set()
+        if eids:
+            rows = await session.scalars(
+                select(Photo.event_id).where(
+                    Photo.event_id.in_(eids), Photo.full_key.is_not(None)
+                )
+            )
+            have_full = set(rows.all())
+        dirty = False
+        for c in received:
+            quality = (c.payload or {}).get("quality", "standard")
+            if c.event_id in have_full and quality != "max":
+                # A full already exists (dedup skip / a sibling command's transfer).
+                # quality=max requests are excluded: the stored full's quality isn't
+                # recorded, so a max upgrade must still run its own transfer.
+                c.status, c.completed_at = "done", now
+                c.detail = "satisfied by existing full"
+                dirty = True
+            else:
+                # SQLite hands back naive datetimes; assume UTC (same policy as ingest).
+                ts = c.received_at or c.created_at
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                if ts >= now - FETCH_RETRY_AFTER:
+                    continue
+                retries = int((c.payload or {}).get("retry", 0))
+                if retries >= FETCH_RETRY_MAX:
+                    c.status, c.completed_at = "expired", now
+                    c.detail = f"transfer never completed after {retries} redeliveries"
+                else:
+                    # Rejoin the normal delivery flow; the leaf ignores unknown
+                    # payload keys, so the counter rides the payload (no migration).
+                    c.payload = {**(c.payload or {}), "retry": retries + 1}
+                    c.status = "pending"
+                    c.received_at = None
+                dirty = True
+        if dirty:
+            await session.commit()
+
     # Redeliver pending/delivered only: "received" means the node confirmed receipt
     # (bug 8), so re-sending it would just burn the node's announce windows. It stays
-    # in OUTSTANDING above for TTL expiry and ingest auto-completion.
+    # in OUTSTANDING above for TTL expiry and ingest auto-completion — and the sweep
+    # right above requeues/settles fetch_fulls the leaf went silent on.
     statuses = ("pending",) if only_pending else ("pending", "delivered")
     q = (
         select(Command)

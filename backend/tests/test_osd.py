@@ -52,9 +52,9 @@ def test_stamp_skips_tiny_frames():
     assert osd.stamp(src, camera_label="x", captured_at=CAPTURED) == src
 
 
-def test_stamp_thumbnail_compact_layout():
-    """A 320px detector crop gets a legible compact bar — fields drop out by
-    measurement instead of the text shrinking into a smudge."""
+def test_stamp_thumbnail_upscales_before_stamping():
+    """A 320px detector crop upscales to _STAMP_MIN_W before the bar is drawn,
+    so the text renders from enough pixels to survive the gallery's blow-up."""
     out = osd.stamp(
         white_jpeg(w=320, h=240),
         camera_label="Creek Crossing",
@@ -63,7 +63,12 @@ def test_stamp_thumbnail_compact_layout():
         battery_v=3.41,
     )
     assert bar_is_drawn(out)
-    assert Image.open(BytesIO(out)).size == (320, 240)
+    assert Image.open(BytesIO(out)).size == (640, 480)
+
+
+def test_stamp_upscale_capped_at_3x():
+    out = osd.stamp(white_jpeg(w=200, h=150), camera_label="x", captured_at=CAPTURED)
+    assert Image.open(BytesIO(out)).size == (600, 450)
 
 
 def test_stamp_bad_timezone_falls_back_to_utc():
@@ -158,3 +163,97 @@ async def test_raw_falls_back_to_full_for_pre_osd_photos(client, device_token, s
     assert r.status_code == 200
     full_key = next(k for k in store.objects if k.endswith(".full.jpg"))
     assert r.content == store.objects[full_key]
+
+
+def legacy_stamp(jpeg: bytes, **kw) -> bytes:
+    """Stamp at native resolution — how pre-upscale thumbs were produced."""
+    saved = osd._STAMP_MIN_W
+    osd._STAMP_MIN_W = 0
+    try:
+        return osd.stamp(jpeg, **kw)
+    finally:
+        osd._STAMP_MIN_W = saved
+
+
+def test_restamp_covers_legacy_bar():
+    legacy = legacy_stamp(
+        white_jpeg(w=320, h=240), camera_label="Lake Path", captured_at=CAPTURED
+    )
+    old_band = osd._bar_band(Image.open(BytesIO(legacy)))
+    assert old_band > 0
+    out = osd.restamp(legacy, camera_label="Lake Path", captured_at=CAPTURED)
+    assert out is not None
+    im = Image.open(BytesIO(out))
+    assert im.size == (640, 480)
+    assert bar_is_drawn(out)
+    # the fresh bar fully covers the old band (scaled 2x by the upscale)
+    assert osd._bar_band(im) >= old_band * 2
+
+
+def test_restamp_skips_wide_unstamped_and_restamped():
+    wide = osd.stamp(white_jpeg(), camera_label="x", captured_at=CAPTURED)
+    assert osd.restamp(wide, camera_label="x", captured_at=CAPTURED) is None
+    # no bar band on an unstamped frame -> left alone
+    assert osd.restamp(white_jpeg(w=320, h=240), camera_label="x", captured_at=CAPTURED) is None
+    # idempotent: a restamped frame is wide now
+    legacy = legacy_stamp(white_jpeg(w=320, h=240), camera_label="x", captured_at=CAPTURED)
+    once = osd.restamp(legacy, camera_label="x", captured_at=CAPTURED)
+    assert osd.restamp(once, camera_label="x", captured_at=CAPTURED) is None
+
+
+async def test_migration_0011_restamps_legacy_thumbs(client, device_token, store):
+    """The 0011 backfill: a legacy-stamped narrow thumb in the store comes out
+    640 wide with the bar redrawn, and reports its new size."""
+    import importlib.util
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+
+    from trailcam.db import get_sessionmaker
+    from trailcam.models import Camera, Photo
+
+    saved = osd._STAMP_MIN_W
+    osd._STAMP_MIN_W = 0
+    try:
+        r = await client.post(
+            "/api/v1/ingest",
+            data={
+                "site": "north40",
+                "camera": "c3-back-of-lake",
+                "event_id": "legacy-1",
+                "captured_at": CAPTURED.isoformat(),
+                "kind": "thumb",
+            },
+            files={"file": ("x.jpg", white_jpeg(w=320, h=240), "image/jpeg")},
+            headers={"Authorization": f"Bearer {device_token}"},
+        )
+        assert r.status_code == 200, r.text
+    finally:
+        osd._STAMP_MIN_W = saved
+
+    path = Path(__file__).parent.parent / "alembic" / "versions" / "0011_restamp_thumbs.py"
+    spec = importlib.util.spec_from_file_location("migration_0011", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    async with get_sessionmaker()() as session:
+        photo = (await session.scalars(select(Photo))).one()
+        cam = (await session.scalars(select(Camera).where(Camera.id == photo.camera_id))).one()
+    assert Image.open(BytesIO(store.objects[photo.thumb_key])).width == 320
+
+    rows = [
+        SimpleNamespace(
+            id=photo.id,
+            thumb_key=photo.thumb_key,
+            captured_at=photo.captured_at,
+            meta=photo.meta,
+            name=cam.name,
+        )
+    ]
+    done = await mod._restamp_all(rows)
+    assert len(done) == 1
+    restamped = store.objects[photo.thumb_key]
+    assert Image.open(BytesIO(restamped)).width == 640
+    assert bar_is_drawn(restamped)
+    assert done[0][1] == len(restamped)

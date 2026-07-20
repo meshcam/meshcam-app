@@ -623,10 +623,13 @@ img {
 }
 
 .detail-img {
-  max-width: 100%;
-  max-height: 100%;
+  /* Fill the stage BOTH ways: mesh thumbnails have tiny natural dimensions
+     and would otherwise sit postage-stamp-sized in a huge dark stage. The
+     letterbox is part of the img box now — PhotoDetail's click handler does
+     the contain-rect math so it still counts as backdrop. */
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  border-radius: 4px;
   user-select: none;
 }
 
@@ -1204,12 +1207,15 @@ img {
 }
 
 .captures-lightbox-stage img {
-  max-width: min(720px, calc(100vw - 110px));
-  max-height: 70vh;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  /* Mesh thumbs are ~320px wide — scaled up they smooth out badly without this. */
-  image-rendering: auto;
+  /* Fill the stage BOTH ways — mesh thumbs are ~320px and would otherwise sit
+     tiny (same treatment as the feed overlay's .detail-img). The border and
+     radius came off: they'd frame the letterbox, not the photo. */
+  width: min(720px, calc(100vw - 110px));
+  height: 70vh;
+  object-fit: contain;
+  /* Flex would shrink the replaced item toward its aspect-transferred size,
+     quietly overriding the width above. */
+  flex: 0 0 auto;
 }
 
 .captures-nav {
@@ -1236,7 +1242,7 @@ img {
     position: relative;
   }
   .captures-lightbox-stage img {
-    max-width: calc(100vw - 40px);
+    width: calc(100vw - 40px);
   }
   .captures-nav {
     position: absolute;
@@ -2815,8 +2821,12 @@ button.uplink-chip-link:hover {
 
 /* Deep feeds stay cheap: offscreen day sections skip render entirely. The
    `auto` keyword keeps the last-rendered size as the placeholder, so scroll
-   geometry self-corrects instead of drifting on the 600px estimate. */
-.grid-wrap section {
+   geometry self-corrects instead of drifting on the 600px estimate.
+   Feed day sections ONLY (`> section[data-day]`): content-visibility implies
+   containment, which turns a section into the containing block for any
+   fixed-position descendant — a bare `section` selector caught the nodes
+   view too and clipped the capture lightbox to its own strip. */
+.grid-wrap > section[data-day] {
   content-visibility: auto;
   contain-intrinsic-size: auto 600px;
 }
@@ -2913,4 +2923,53 @@ button.uplink-chip-link:hover {
   border-color: var(--accent);
   background: var(--accent-dim);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+/* While the timeline rail is mounted it IS the scrollbar — hide the native
+   one so two vertical indicators don't fight over the same edge. */
+html.has-scrubber {
+  scrollbar-width: none;
+}
+
+html.has-scrubber::-webkit-scrollbar {
+  display: none;
+}
+
+/* The rail reads as the scrollbar it replaced: firm up on hover/drag. */
+.scrubber:hover .scrubber-track,
+.scrubber:active .scrubber-track {
+  background: color-mix(in srgb, var(--dim) 80%, transparent);
+}
+
+.scrubber:hover .scrubber-marker {
+  width: 10px;
+  height: 10px;
+  right: 2px;
+}
+
+/* Version toggle in the detail caption: the mesh thumb is a separate
+   exposure from the pulled full, so both stay reachable. */
+.detail-versions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.version-pill {
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.version-pill.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
 }

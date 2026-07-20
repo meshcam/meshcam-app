@@ -1,7 +1,9 @@
 """Auth: OIDC (your OIDC provider) session cookies for humans, bearer tokens for devices.
 
-Humans: classic confidential-client code flow (BFF style). The IdP's user
-allowlist is the whole access model — anyone who can get a token is family.
+Humans: classic confidential-client code flow (BFF style). By default the
+IdP's user list is the whole access model — anyone who can get a token is
+family. TRAILCAM_ALLOWED_EMAILS adds an optional app-level allowlist on top,
+for instances that share one IdP with accounts they shouldn't see each other.
 Devices (the mesh gateway): static bearer tokens, sha256
 stored in device_tokens, minted with `python -m trailcam.devicetoken <name>`.
 """
@@ -59,6 +61,9 @@ async def callback(request: Request):
     email = userinfo.get("email")
     if not email:
         raise HTTPException(401, "No email in OIDC claims")
+    allowed = get_settings().allowed_emails_set
+    if allowed and email.lower() not in allowed:
+        raise HTTPException(403, "This account is not authorized for this instance")
     request.session["user"] = {"email": email, "name": userinfo.get("name") or email}
     return RedirectResponse(request.session.pop("next", "/"))
 

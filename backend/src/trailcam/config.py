@@ -26,10 +26,22 @@ class Settings(BaseSettings):
     s3_access_key: str = ""
     s3_secret_key: str = ""
 
-    # OIDC — the IdP allowlist is the access control.
+    # OIDC — by default the IdP's own user list is the access control (anyone
+    # who can get a token is family).
     oidc_issuer: str = ""  # e.g. https://auth.example.com
     oidc_client_id: str = "trailcam"
     oidc_client_secret: str = ""
+
+    # Login allowlist / seats: comma-separated OIDC emails permitted to sign
+    # in. Empty (the default) allows any authenticated email through — the
+    # single-tenant, back-compat behavior above. Hosted multi-tenant
+    # instances share one IdP, so this is what actually scopes an instance to
+    # its account; the list length is the "seats" tier axis.
+    allowed_emails: str = ""
+
+    @property
+    def allowed_emails_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.allowed_emails.split(",") if e.strip()}
 
     session_secret: str = "dev-only-not-a-secret"
     session_max_age: int = 30 * 24 * 3600  # 30d

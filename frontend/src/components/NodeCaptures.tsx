@@ -4,6 +4,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react'
 import * as api from '../api'
 import { UnauthorizedError } from '../api'
 import { formatEastern, timeAgo } from '../format'
+import { inLetterbox } from '../letterbox'
 import { feedUrl, navigate, photoUrl } from '../router'
 import type { FeedFilters } from '../router'
 import type { NodeHealth, Photo } from '../types'
@@ -181,6 +182,10 @@ export default function NodeCaptures({ node, onUnauthorized }: NodeCapturesProps
               )}
               alt={`Photo from ${viewed.camera_name}`}
               draggable={false}
+              onClick={(e) => {
+                // The img box fills the stage; letterbox clicks are backdrop.
+                if (inLetterbox(e)) setViewIdx(null)
+              }}
             />
             {count > 1 && (
               <button

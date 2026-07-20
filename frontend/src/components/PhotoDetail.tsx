@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from 'react'
 import { ApiError, getFullRequest, photoImageUrl } from '../api'
 import { captureSkewDays, expiryLabel, formatEastern, timeAgo } from '../format'
+import { inLetterbox } from '../letterbox'
 import { live } from '../live'
 import type { FullRequest, MeshEvent, MeshTransfer, Photo, TagCount } from '../types'
 
@@ -109,6 +110,10 @@ export default function PhotoDetail({
   // 1 Hz tick while a request is outstanding, so elapsed/ETA text stays alive.
   const [nowTick, setNowTick] = useState(() => Date.now())
   const [imgDims, setImgDims] = useState<string | null>(null)
+  // Once a full arrives it becomes the shown version — but the thumb is a
+  // SEPARATE exposure (captured ~a second before the full on current
+  // firmware), so it stays reachable behind a version toggle.
+  const [viewThumb, setViewThumb] = useState(false)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const onRefreshRef = useRef(onRefresh)
   onRefreshRef.current = onRefresh
@@ -119,6 +124,7 @@ export default function PhotoDetail({
     setConfirmingMax(false)
     setActionError(null)
     setImgDims(null)
+    setViewThumb(false)
     setAddingTag(false)
     setTagDraft('')
   }, [photo.id])
@@ -196,9 +202,12 @@ export default function PhotoDetail({
     return () => window.clearInterval(id)
   }, [requestOutstanding])
 
-  // Keyboard: Escape closes, arrows navigate.
+  // Keyboard: Escape closes, arrows navigate. Not while typing (the tag
+  // input) — there the arrows are cursor movement.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target
+      if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return
       if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
@@ -226,6 +235,10 @@ export default function PhotoDetail({
   const closeOnSelf = (e: ReactMouseEvent) => {
     if (e.target === e.currentTarget) onClose()
   }
+
+  const showFull = photo.has_full && !viewThumb
+  const fullLabel =
+    fullReq?.status === 'done' && fullReq.quality === 'max' ? 'Original' : 'HD'
 
   const handleTouchStart = (e: ReactTouchEvent) => {
     const touch = e.touches.item(0)
@@ -335,18 +348,23 @@ export default function PhotoDetail({
           </button>
         )}
         <img
-          key={`${photo.id}-${photo.has_full ? `full-${photo.full_size ?? 0}` : 'thumb'}`}
+          key={`${photo.id}-${showFull ? `full-${photo.full_size ?? 0}` : 'thumb'}`}
           className="detail-img"
           src={photoImageUrl(
             photo.id,
-            photo.has_full ? 'full' : 'thumb',
-            photo.has_full ? photo.full_size : photo.thumb_size,
+            showFull ? 'full' : 'thumb',
+            showFull ? photo.full_size : photo.thumb_size,
           )}
           alt={`Trail camera photo from ${photo.camera_name}`}
           draggable={false}
           onLoad={(e) => {
             const el = e.currentTarget
             setImgDims(`${el.naturalWidth}×${el.naturalHeight}`)
+          }}
+          onClick={(e) => {
+            // The img box fills the stage (small thumbs upscale to fit), so
+            // its letterbox areas ARE the backdrop.
+            if (inLetterbox(e)) onClose()
           }}
         />
         {hasNext && (
@@ -468,13 +486,39 @@ export default function PhotoDetail({
 
         <div className={`detail-expiry${photo.keep ? ' kept' : ''}`}>
           {expiryLabel(photo.expires_at, photo.keep)}
-          <span className={`detail-viewing${photo.has_full ? ' full' : ''}`}>
-            {photo.has_full
-              ? `Viewing ${
-                  fullReq?.status === 'done' && fullReq.quality === 'max' ? 'original' : 'HD'
-                }${imgDims ? ` ${imgDims}` : ''}${kb(photo.full_size)}`
-              : `Viewing thumbnail${imgDims ? ` ${imgDims}` : ''}${kb(photo.thumb_size)}`}
-          </span>
+          {photo.has_full ? (
+            /* Two real versions exist — the thumb is its own exposure, not a
+               downscale of the full — so both stay viewable. */
+            <span className="detail-versions">
+              <button
+                type="button"
+                className={`version-pill${viewThumb ? ' active' : ''}`}
+                onClick={() => {
+                  setViewThumb(true)
+                  setImgDims(null)
+                }}
+              >
+                Thumb
+              </button>
+              <button
+                type="button"
+                className={`version-pill${viewThumb ? '' : ' active'}`}
+                onClick={() => {
+                  setViewThumb(false)
+                  setImgDims(null)
+                }}
+              >
+                {fullLabel}
+              </button>
+              <span className="detail-viewing full">
+                {`${imgDims ?? ''}${kb(showFull ? photo.full_size : photo.thumb_size)}`}
+              </span>
+            </span>
+          ) : (
+            <span className="detail-viewing">
+              {`Viewing thumbnail${imgDims ? ` ${imgDims}` : ''}${kb(photo.thumb_size)}`}
+            </span>
+          )}
         </div>
 
         {fullReq && (requestOutstanding || !photo.has_full) && (

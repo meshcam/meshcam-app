@@ -1,9 +1,10 @@
 from datetime import timedelta
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
+from trailcam.api.commands import FETCH_RETRY_AFTER, FETCH_RETRY_MAX
 from trailcam.db import get_sessionmaker
-from trailcam.models import Command, utcnow
+from trailcam.models import Command, Photo, utcnow
 from trailcam.purge import expire_commands
 
 JPEG = b"\xff\xd8\xff\xe0fakejpegbytes"
@@ -310,3 +311,122 @@ async def test_node_command_history_redacts_psk(client, device_token):
     await client.post(f"/api/v1/photos/{pid}/request-full", json={"quality": "standard"})
     history = (await client.get(f"/api/v1/nodes/{node_id}/commands")).json()
     assert [c["kind"] for c in history] == ["fetch_full", "maintenance"]
+
+
+# --- received-fetch_full recovery (2026-07-19) -----------------------------------------
+# Air-verified orphans (trailcam-dev commands 80/81, 2026-07-18): a receipt-acked
+# fetch_full whose transfer aborts is never redelivered, and a dedup-skipped send
+# produces no ingest so the command never completes. The poll-time sweep heals both.
+
+
+async def _request_and_receive(client, headers):
+    photo = await first_photo(client)
+    await client.post(f"/api/v1/photos/{photo['id']}/request-full")
+    cmd = (await client.get("/api/v1/commands", headers=headers)).json()[0]
+    await client.post(
+        f"/api/v1/commands/{cmd['id']}/ack", json={"status": "received"}, headers=headers
+    )
+    return photo, cmd
+
+
+async def _backdate_received(minutes_past_window: int = 1):
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            update(Command).values(
+                received_at=utcnow() - FETCH_RETRY_AFTER - timedelta(minutes=minutes_past_window)
+            )
+        )
+        await session.commit()
+
+
+async def test_received_fetch_full_requeues_after_silence(client, device_token):
+    """Abort orphan: received + no ingest + gone quiet -> back into the delivery flow
+    with a retry counter riding the payload."""
+    await ingest(client, device_token)
+    headers = {"Authorization": f"Bearer {device_token}"}
+    photo, cmd = await _request_and_receive(client, headers)
+
+    # fresh receipt: not redelivered
+    assert (await client.get("/api/v1/commands", headers=headers)).json() == []
+
+    await _backdate_received()
+    redelivered = (await client.get("/api/v1/commands", headers=headers)).json()
+    assert [c["id"] for c in redelivered] == [cmd["id"]]
+    assert redelivered[0]["payload"]["retry"] == 1
+    assert redelivered[0]["status"] == "delivered"
+    # the UI still shows an outstanding request throughout
+    assert (await first_photo(client))["full_requested"] is True
+
+
+async def test_received_fetch_full_expires_after_retry_cap(client, device_token):
+    await ingest(client, device_token)
+    headers = {"Authorization": f"Bearer {device_token}"}
+    photo, cmd = await _request_and_receive(client, headers)
+
+    async with get_sessionmaker()() as session:
+        await session.execute(
+            update(Command).values(payload={"quality": "standard", "retry": FETCH_RETRY_MAX})
+        )
+        await session.commit()
+    await _backdate_received()
+
+    assert (await client.get("/api/v1/commands", headers=headers)).json() == []
+    diag = (await client.get(f"/api/v1/photos/{photo['id']}/full-request")).json()
+    assert diag["status"] == "expired"
+    # a dead request frees the UI to re-request
+    assert (await first_photo(client))["full_requested"] is False
+
+
+async def _orphan_received_command(event_id: str, quality: str) -> None:
+    """Reproduce the observed orphan state directly: a received fetch_full for a photo
+    that already has its full (the API's already_satisfied guard makes this state
+    reachable only via races/dedup skips, which is exactly the bug)."""
+    async with get_sessionmaker()() as session:
+        photo = await session.scalar(select(Photo).where(Photo.event_id == event_id))
+        session.add(
+            Command(
+                camera_id=photo.camera_id,
+                kind="fetch_full",
+                event_id=event_id,
+                payload={"quality": quality},
+                status="received",
+                received_at=utcnow(),
+                created_at=utcnow(),
+            )
+        )
+        await session.commit()
+
+
+async def test_received_fetch_full_satisfied_by_existing_full(client, device_token):
+    """Dedup-skip orphan: the full already sits server-side, so no ingest will ever
+    complete the command -> the sweep marks it done immediately."""
+    await ingest(client, device_token, event_id="evt-sat")
+    await ingest(client, device_token, event_id="evt-sat", kind="full")
+    await _orphan_received_command("evt-sat", "standard")
+    headers = {"Authorization": f"Bearer {device_token}"}
+
+    assert (await client.get("/api/v1/commands", headers=headers)).json() == []
+    async with get_sessionmaker()() as session:
+        cmd = await session.scalar(select(Command).where(Command.event_id == "evt-sat"))
+        assert cmd.status == "done"
+        assert cmd.detail == "satisfied by existing full"
+
+
+async def test_received_max_quality_not_auto_completed(client, device_token):
+    """A quality=max request is NOT satisfied by an existing (unknown-quality) full —
+    it takes the retry path instead so the upgrade transfer actually runs."""
+    await ingest(client, device_token, event_id="evt-max")
+    await ingest(client, device_token, event_id="evt-max", kind="full")
+    await _orphan_received_command("evt-max", "max")
+    headers = {"Authorization": f"Bearer {device_token}"}
+
+    # fresh: neither completed nor redelivered
+    assert (await client.get("/api/v1/commands", headers=headers)).json() == []
+    async with get_sessionmaker()() as session:
+        cmd = await session.scalar(select(Command).where(Command.event_id == "evt-max"))
+        assert cmd.status == "received"
+
+    await _backdate_received()
+    redelivered = (await client.get("/api/v1/commands", headers=headers)).json()
+    assert [c["event_id"] for c in redelivered] == ["evt-max"]
+    assert redelivered[0]["payload"]["retry"] == 1
