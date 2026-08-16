@@ -65,7 +65,10 @@ async def test_probe_telemetry_creates_probe_row(client, device_token):
     assert p["profile"] == "sf8/bw125"
     assert p["bytes"] == 5309
     assert p["duration_ms"] == 22146
-    assert p["leaf_rssi"] is None  # firmware doesn't send the downlink yet
+    # PROBE_EXTRA is the legacy envelope: no leaf_* in the probe block at
+    # all. Absent must stay null, not 0 — a 0 dBm downlink would be nonsense.
+    assert p["leaf_rssi"] is None
+    assert p["leaf_snr"] is None
 
     # The telemetry row is still written too — the live mesh feed reads it.
     recent = (await client.get("/api/v1/mesh/recent")).json()
@@ -107,10 +110,22 @@ async def test_no_fix_probes_hidden_by_default(client, device_token):
 
 
 async def test_probe_leaf_side_stored_when_present(client, device_token):
-    await post_probe(client, device_token, leaf_rssi=-104, leaf_snr=10.0)
+    # The surveyor envelope as it is composed today: leaf_rssi/leaf_snr
+    # read off the gateway's link handshake, in the probe block the gateway
+    # pastes through verbatim.
+    await post_probe(client, device_token, leaf_rssi=-118, leaf_snr=-6.5)
     p = (await client.get("/api/v1/probes")).json()[0]
-    assert p["leaf_rssi"] == -104.0
-    assert p["leaf_snr"] == 10.0
+    assert p["leaf_rssi"] == -118.0
+    assert p["leaf_snr"] == -6.5
+
+
+async def test_leaf_rssi_below_the_retracted_104_floor_survives(client, device_token):
+    """No -104 floor. It was inferred from two identical readings on the
+    2026-07-14 walk; the 07-17 and 08-07 board dumps run to -130/-132, and
+    clamping or re-labelling those would erase the whole downlink range."""
+    await post_probe(client, device_token, leaf_rssi=-132, leaf_snr=-14.5)
+    p = (await client.get("/api/v1/probes")).json()[0]
+    assert p["leaf_rssi"] == -132.0
 
 
 async def test_sessions_cluster_on_gap(client, device_token):

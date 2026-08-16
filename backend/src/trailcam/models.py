@@ -161,8 +161,11 @@ class Probe(Base):
     # information (stored for the record, never displayed as quality).
     gw_rssi: Mapped[float | None] = mapped_column(Float, default=None)
     gw_snr: Mapped[float | None] = mapped_column(Float, default=None)
-    # Downlink — what the surveyor heard. Null until the leaf firmware
-    # reports it; -104 is the board's readout floor and means "≤ -104".
+    # Downlink — what the surveyor heard off the gateway's link handshake. This
+    # is the BINDING direction (13.1 dB weaker than the uplink at the decision
+    # band per the field calibration), so a survey read on gw_rssi alone reads
+    # ~13 dB more margin than the site has. Null means the board had no reading
+    # it could pin to that spot — never that the signal was weak.
     leaf_rssi: Mapped[float | None] = mapped_column(Float, default=None)
     leaf_snr: Mapped[float | None] = mapped_column(Float, default=None)
 

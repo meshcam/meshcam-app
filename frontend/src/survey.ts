@@ -5,8 +5,9 @@
  * The rules this module encodes (each one is a real trap in the field data):
  * - Colour and rank by gw_rssi only — the one clean instrument. Gateway SNR
  *   is railed (~12.2–14.5 dB at every distance) and carries no information.
- * - leaf_rssi of -104 is the board's readout floor: render "≤ -104", never
- *   plot it as a value.
+ * - leaf_rssi has NO readout floor. A -104 floor used to be encoded here on
+ *   the strength of two identical readings in one 20-row walk; the board dumps
+ *   since run to -132 dBm. Render it as an ordinary dBm value.
  * - A probe with fix_ok=false has fictional coordinates; it must never be
  *   plotted, but also never silently dropped (count badge + side list).
  */
@@ -64,17 +65,8 @@ export function deltaColor(delta: number): string {
 
 // --- readout formatting -------------------------------------------------------
 
-/** The board's RSSI readout floor: -104 stored means "at or below -104". */
-export const LEAF_RSSI_FLOOR = -104
-
 export function formatDbm(v: number | null): string {
   return v == null ? '—' : `${v.toFixed(v % 1 === 0 ? 0 : 1)} dBm`
-}
-
-/** leaf_rssi with the floor made explicit — nobody may plot -104 as a value. */
-export function formatLeafRssi(v: number | null): string {
-  if (v == null) return '—'
-  return v <= LEAF_RSSI_FLOOR ? `≤ ${LEAF_RSSI_FLOOR} dBm` : formatDbm(v)
 }
 
 // --- geometry -----------------------------------------------------------------

@@ -15,9 +15,13 @@ from trailcam.models import Probe
 
 logger = logging.getLogger("trailcam.probes")
 
-# The board's RSSI readout floor: probes at 195 m and 249 m both report
-# exactly -104. A stored -104 means "≤ -104", and the UI renders it that way.
-LEAF_RSSI_FLOOR = -104.0
+# RETRACTED: there is no -104 readout floor. It was inferred from two probes on
+# the 2026-07-14 walk that both reported exactly -104; the 07-17 and 08-07 board
+# dumps run down to -130 and -132 dBm, so -104 was a coincidence in a 20-row
+# sample, not a rail. The constant that lived here (and the UI's "≤ -104"
+# rendering of it) would have flattened the entire useful range of the downlink
+# data the firmware now actually sends. Do not reintroduce a floor without a
+# datasheet or a bench sweep behind it.
 
 
 def gps_fix_ok(

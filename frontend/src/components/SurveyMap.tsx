@@ -2,7 +2,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef } from 'react'
 import type { TileConfig } from '../survey'
-import { formatDbm, formatLeafRssi } from '../survey'
+import { formatDbm } from '../survey'
 import { formatEastern } from '../format'
 import type { Probe } from '../types'
 
@@ -49,10 +49,10 @@ function probePopupHtml(p: Probe): string {
     ['gw RSSI (uplink)', formatDbm(p.gw_rssi)],
     // Railed instrument — shown raw in the popup, never encoded on the map.
     ['gw SNR (railed)', p.gw_snr == null ? '—' : `${p.gw_snr.toFixed(1)} dB`],
-    ['leaf RSSI (downlink)', formatLeafRssi(p.leaf_rssi)],
+    ['leaf RSSI (downlink)', formatDbm(p.leaf_rssi)],
     ['leaf SNR', p.leaf_snr == null ? '—' : `${p.leaf_snr.toFixed(1)} dB`],
   ]
-  if (p.leaf_rssi != null && p.gw_rssi != null && p.leaf_rssi > -104) {
+  if (p.leaf_rssi != null && p.gw_rssi != null) {
     // Path loss is reciprocal and cancels: asymmetry is a property of the
     // radios, independent of where the operator was standing.
     rows.push(['asymmetry (leaf−gw)', `${(p.leaf_rssi - p.gw_rssi).toFixed(1)} dB`])

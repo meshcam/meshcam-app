@@ -134,9 +134,13 @@ class MeOut(BaseModel):
 
 
 class ProbeOut(BaseModel):
-    """One surveyor button-press. gw_* is the uplink (what the gateway heard,
-    the clean instrument); leaf_* is the downlink (null until the leaf
-    firmware reports it; -104 is the board's floor and means "≤ -104")."""
+    """One surveyor button-press. gw_* is the uplink (what the gateway heard);
+    leaf_* is the downlink, measured on the board off the gateway's link
+    handshake — the BINDING direction, which runs ~13 dB weaker.
+
+    A leaf_* of null means the surveyor had no reading it could honestly pin to
+    that spot (no link, or nothing heard during that probe), never that the
+    signal was weak."""
 
     id: uuid.UUID
     node_id: uuid.UUID  # the surveyor node

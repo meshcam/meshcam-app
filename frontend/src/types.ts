@@ -105,8 +105,9 @@ export interface HistogramBucket {
 export type View = 'photos' | 'nodes' | 'survey' | 'settings'
 
 /** One surveyor button-press. gw_* is the uplink (what the gateway heard —
- *  the one clean instrument); leaf_* is the downlink (null until the leaf
- *  firmware reports it; -104 is the board's floor and means "≤ -104"). */
+ *  the one clean instrument); leaf_* is the downlink the board heard, the
+ *  binding direction. Null leaf_* = the board had no reading it could pin to
+ *  that spot, NOT a weak signal. No readout floor — dumps run to -132 dBm. */
 export interface Probe {
   id: string
   node_id: string
