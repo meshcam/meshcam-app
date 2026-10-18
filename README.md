@@ -24,7 +24,11 @@ React. Run the whole backend yourself; the hosted cloud is optional.
 - **Node health:** per-node battery (LiFePO4-aware coloring), RSSI/SNR,
   temperature charts; OK/Quiet/Dark status from last-seen.
 - **Command queue:** pull-based (gateways live behind NAT; nodes sleep):
-  full-res fetches, maintenance windows, sleep.
+  full-res fetches, maintenance windows, sleep, firmware updates, and a
+  consent-gated card format. The last one is the only action here that destroys
+  data: a node reports a card it cannot read (cards over 32 GB ship exFAT,
+  which the firmware cannot mount), and the operator has to press the button.
+  The node refuses to format any card it can actually read.
 - **OSD stamping:** burns camera/temp/battery/timestamp into full-res
   images at ingest, keeping pristine originals as `.raw` S3 siblings.
 - **Retention:** unsaved photos expire (default 180 days); starred never.
@@ -54,6 +58,22 @@ tokens:
 python -m trailcam.devicetoken my-gateway   # prints once; sha256 stored
 ```
 
+Running more than a couple of gateways, or scripting the flash bench? Set
+`TRAILCAM_PROVISION_KEY` (32+ chars) and mint over HTTP instead of `exec`-ing
+into the pod:
+
+```sh
+curl -X POST https://your-instance/api/v1/provision/device-tokens \
+  -H "X-Provision-Key: $TRAILCAM_PROVISION_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"gw-3fa2b1c4","site_slug":"north40","replace":true}'
+# → {"id": "...", "token": "tc_...", ...}   DELETE /…/{id} revokes
+```
+
+Leave `TRAILCAM_PROVISION_KEY` unset and those routes return 404, which is the
+default — an instance without the key looks exactly like an instance without
+the feature.
+
 All configuration is `TRAILCAM_*` environment variables; see
 `backend/src/trailcam/config.py` for the complete, commented list. (Env
 prefix and module name keep the project's original working title,
@@ -62,7 +82,7 @@ prefix and module name keep the project's original working title,
 ## Development
 
 ```sh
-cd backend && uv sync && uv run pytest         # 69 tests
+cd backend && uv sync && uv run pytest         # 123 tests
 uv run uvicorn trailcam.main:app --reload
 cd frontend && npm ci && npm run dev
 ```

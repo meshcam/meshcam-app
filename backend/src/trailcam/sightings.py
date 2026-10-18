@@ -17,7 +17,7 @@ backfill (a migration must not drift with app code).
 """
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,3 +77,34 @@ async def assign_sighting(
     if nxt is not None:
         return nxt.sighting_id, None
     return uuid.uuid4(), None
+
+
+async def regroup_sightings(session: AsyncSession, camera_id: int, gap_min: int) -> int:
+    """Recompute every sighting group for one camera; returns the group count.
+
+    assign_sighting() only ever looks at a new photo's immediate neighbours,
+    which is right at ingest and wrong after a merge: two cameras' captures
+    have just landed in one camera, interleaved, and the groups they arrived
+    with were formed against different neighbours. Same gap walk as the 0009
+    backfill, over one camera.
+    """
+    rows = (
+        await session.scalars(
+            select(Photo).where(Photo.camera_id == camera_id).order_by(Photo.captured_at, Photo.id)
+        )
+    ).all()
+    gap = timedelta(minutes=gap_min)
+    groups = 0
+    prev_at: datetime | None = None
+    sid = uuid.uuid4()
+    for photo in rows:
+        at = photo.captured_at
+        # SQLite hands back naive datetimes, Postgres aware ones.
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=UTC)
+        if prev_at is None or at - prev_at > gap:
+            sid = uuid.uuid4()
+            groups += 1
+        photo.sighting_id = sid
+        prev_at = at
+    return groups

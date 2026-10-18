@@ -2,6 +2,11 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 32 chars is 128 bits at hex, and `secrets.token_urlsafe(32)` (what
+# scripts/meshcam-tenant mints) is 43. Anything shorter is a typo or a
+# placeholder, and both should fail closed rather than open a weak door.
+PROVISION_KEY_MIN_LEN = 32
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TRAILCAM_", env_file=".env", extra="ignore")
@@ -42,6 +47,19 @@ class Settings(BaseSettings):
     @property
     def allowed_emails_set(self) -> set[str]:
         return {e.strip().lower() for e in self.allowed_emails.split(",") if e.strip()}
+
+    # Machine provisioning door (/api/v1/provision/*). A hosted gateway claim
+    # mints this instance's device token through it, so the caller is the cloud
+    # control plane, never a browser. Empty (the default) makes every provision
+    # route 404: a self-hosted instance that never sets it has no such door, and
+    # cannot be probed for one. Keys shorter than PROVISION_KEY_MIN_LEN are
+    # treated as unset, because a short shared secret on an internet-reachable
+    # mint-a-credential route is worse than no route at all.
+    provision_key: str = ""
+
+    @property
+    def provision_enabled(self) -> bool:
+        return len(self.provision_key) >= PROVISION_KEY_MIN_LEN
 
     session_secret: str = "dev-only-not-a-secret"
     session_max_age: int = 30 * 24 * 3600  # 30d

@@ -88,6 +88,19 @@ img {
   background: #4a6a3c;
 }
 
+/* Destructive confirm (card format). Reads as a warning, not as the primary
+   path: this is the only action in the app that erases a customer's data. */
+.btn-danger {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
 .icon-btn {
   min-width: 44px;
   padding: 8px;
@@ -391,6 +404,7 @@ img {
   position: absolute;
   top: 6px;
   right: 8px;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -468,15 +482,22 @@ img {
   }
 }
 
+/* Pinned to the TOP of the tile, not the bottom: the camera's OSD bar is
+ * burned into the bottom of every thumbnail (backend/src/trailcam/osd.py)
+ * and its on-screen height isn't knowable here (it scales off the source
+ * image's original width, then the tile crops to a square). A
+ * fixed top position always clears it, whatever height it renders at. The
+ * right-hand padding reserves room for .tile-badges, which outranks this
+ * caption's gradient via z-index so long camera names never paint over it. */
 .tile-caption {
   position: absolute;
-  inset: auto 0 0 0;
+  inset: 0 0 auto 0;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 18px 8px 6px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), transparent);
+  padding: 6px 88px 18px 8px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), transparent);
   font-size: 0.75rem;
   line-height: 1.2;
 }
@@ -967,6 +988,23 @@ img {
   font-size: 0.9rem;
 }
 
+/* A card is in the slot and the node can't mount it. Almost always a >32 GB
+   card still exFAT from the factory: the node is alive and quietly storing to its tiny
+   internal ring instead of the card, which looks like nothing at all from here. */
+.storage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warn, var(--danger));
+  border: 1px solid color-mix(in srgb, var(--warn, var(--danger)) 50%, transparent);
+}
+
 /* capturing fine but pushes failing (bug 5) — the outage mode that hid as "quiet cam" */
 .push-failing-pill {
   display: inline-flex;
@@ -980,6 +1018,23 @@ img {
   border-radius: 999px;
   color: var(--danger);
   border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+/* This board came back under a new radio identity, so half its history is filed
+   under a name nothing answers to any more. Not a failure — a housekeeping
+   job that is otherwise invisible outside the telemetry JSON. */
+.identity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warn, var(--danger));
+  border: 1px solid color-mix(in srgb, var(--warn, var(--danger)) 50%, transparent);
 }
 
 .status-dot {
@@ -2280,6 +2335,56 @@ button.uplink-chip-link:hover {
 }
 
 /* --- Node commands ----------------------------------------------------------- */
+
+/* Re-identification panel — sits above everything else in the node
+   overlay, because it is the reason the numbers below only tell half the story. */
+.node-identity {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn, var(--danger)) 45%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn, var(--danger)) 8%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.node-identity-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn, var(--danger));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.node-identity-body {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.node-identity-body code {
+  font-size: 0.85em;
+  color: var(--text, inherit);
+}
+
+/* The shared confirm row right-aligns itself inside a toolbar; here it is
+   flowing text in a column, so it starts where the sentences above it do. */
+.node-identity .confirm-group {
+  margin-left: 0;
+}
+
+.node-identity-error {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--danger);
+}
 
 .node-commands {
   margin-top: 20px;

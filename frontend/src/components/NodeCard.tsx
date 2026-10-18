@@ -4,8 +4,10 @@ import {
   BatteryWarning,
   Camera,
   Compass,
+  HardDrive,
   RadioTower,
   Router,
+  Split,
   TriangleAlert,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -103,6 +105,24 @@ export default function NodeCard({ node, onClick }: NodeCardProps) {
           >
             <TriangleAlert size={12} aria-hidden="true" />
             pushes failing
+          </span>
+        )}
+        {node.storage_state === 'unreadable' && (
+          <span
+            className="storage-pill"
+            title="There is a card in this camera that it cannot read, so full-size photos are going to its tiny internal memory instead. Cards over 32 GB ship formatted exFAT, which the camera can't mount. Open the node and use Format card to fix it."
+          >
+            <HardDrive size={12} aria-hidden="true" />
+            card unreadable
+          </span>
+        )}
+        {node.prev_node && (
+          <span
+            className="identity-pill"
+            title={`This board came back under a new name: it used to announce as ${node.prev_node}, and that half of its photos and telemetry is still filed separately. Open the node to merge them back together.`}
+          >
+            <Split size={12} aria-hidden="true" />
+            history split
           </span>
         )}
       </div>

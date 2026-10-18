@@ -69,8 +69,51 @@ class Camera(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_battery_v: Mapped[float | None] = mapped_column(Float, default=None)
+    # The wire slug this node last actually contacted us under, which is NOT always
+    # `slug`. After a merge the kept row keeps its own slug while the board goes on
+    # announcing the new identity forever, and commands are addressed by
+    # slug — so without this, every command to a merged camera is sent to a name no
+    # board answers to. Stamped on each ingest/telemetry contact; null until first
+    # contact, and equal to `slug` for every node that has never been re-identified.
+    last_wire_slug: Mapped[str | None] = mapped_column(String(64), default=None)
 
     site: Mapped[Site] = relationship(back_populates="cameras")
+    # Retired slugs that still resolve to this row. Deleting the
+    # camera takes its aliases with it — an alias without a target would make
+    # the next ingest under that slug fail instead of auto-creating.
+    aliases: Mapped[list[CameraAlias]] = relationship(
+        back_populates="camera", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class CameraAlias(Base):
+    """A retired node slug that still means an existing camera.
+
+    A leaf's wire slug is derived from its RNS identity, and that identity can
+    be lost — a full `esptool write-flash 0x0` writes 0xFF straight across the
+    nvs partition, and arduino-esp32 silently erases nvs when it fills. The
+    board comes back as a brand new slug, auto-creates a second camera row, and
+    the node's captures, telemetry and command queue split in two.
+
+    An alias is the repair: the abandoned slug (or the new one, depending which
+    row is kept) keeps resolving to the surviving camera, so ingest under
+    either name lands in one place and nothing has to be renamed on the device.
+    It is deliberately reversible — deleting the alias row restores the old
+    auto-create behavior — because a merge done on a wrong guess should not
+    need a database restore to undo."""
+
+    __tablename__ = "camera_aliases"
+    __table_args__ = (UniqueConstraint("site_id", "slug", name="uq_camera_aliases_site_slug"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id"))
+    slug: Mapped[str] = mapped_column(String(64))
+    camera_id: Mapped[int] = mapped_column(ForeignKey("cameras.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Why this alias exists, in a human's words — "board 0016 reflashed 2026-09-03".
+    note: Mapped[str | None] = mapped_column(Text(), default=None)
+
+    camera: Mapped[Camera] = relationship(back_populates="aliases")
 
 
 class DeviceToken(Base):
@@ -94,6 +137,9 @@ class Telemetry(Base):
     __table_args__ = (
         Index("ix_telemetry_camera_received", "camera_id", "received_at"),
         Index("ix_telemetry_received_at", "received_at"),
+        # Not every index on this table is here: ix_telemetry_prev_node is a
+        # partial expression index Postgres alone can build, so it lives only in
+        # migration 0014. See that file for why its predicate is copied by hand.
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

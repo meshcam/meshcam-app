@@ -4,8 +4,7 @@ Self-contained pipeline that boots a throwaway trailcam stack (sqlite +
 [moto](https://docs.getmoto.org/) standing in for S3), seeds it with a
 believable week of demo data, and captures app screenshots with Playwright
 for the Montmere MeshCam marketing site (homelab repo,
-`kubernetes/apps/meshcam/`). Adapted from the TPAStream webapp pipeline
-(`LakeEriePartners/stream:scripts/screenshots`).
+`kubernetes/apps/meshcam/`).
 
 ```
 scripts/screenshots/

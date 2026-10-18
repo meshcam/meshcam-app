@@ -7,6 +7,7 @@ import { timeAgo } from '../format'
 import type { NodeHealth, TelemetryPoint } from '../types'
 import NodeCaptures from './NodeCaptures'
 import NodeCommands from './NodeCommands'
+import NodeIdentity from './NodeIdentity'
 import TelemetryChart from './TelemetryChart'
 import UplinkPanel from './UplinkPanel'
 
@@ -20,6 +21,8 @@ interface NodeDetailProps {
   onUnauthorized: () => void
   /** A rename was saved — the parent owns the health list, so it patches its copy. */
   onRenamed: (id: string, name: string) => void
+  /** A split history was merged: this node's row is gone and `keptId` absorbed it. */
+  onMerged: (keptId: string) => void
 }
 
 const RANGES = [
@@ -51,6 +54,9 @@ const STAT_LABELS: Record<string, string> = {
   chunks: 'Photo chunks',
   via: 'Heard via',
   status: 'Last event',
+  // Only present during the short announce burst after a re-identification; the
+  // identity panel above is what keeps saying it once the burst is over.
+  prev_node: 'Previously announced as',
 }
 
 // `extra` keys that are raw debug payloads, not stats — never render them.
@@ -86,6 +92,7 @@ export default function NodeDetail({
   onClose,
   onUnauthorized,
   onRenamed,
+  onMerged,
 }: NodeDetailProps) {
   const [hours, setHours] = useState<number>(168)
   const [attempt, setAttempt] = useState(0)
@@ -300,6 +307,16 @@ export default function NodeDetail({
           {node.kind} · {node.site_slug} · last seen{' '}
           {node.last_seen_at ? timeAgo(node.last_seen_at) : 'never'}
         </div>
+
+        {/* A re-identified board, still filed as two nodes. Top of the
+            panel because it explains every other number below being half a story. */}
+        <NodeIdentity
+          node={node}
+          nodes={nodes}
+          demo={demo}
+          onUnauthorized={onUnauthorized}
+          onMerged={onMerged}
+        />
 
         {/* Relays/gateways/surveyors don't take photos — cameras only. */}
         {node.kind === 'camera' && (

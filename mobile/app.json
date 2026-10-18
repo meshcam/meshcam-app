@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "MeshCam",
+    "slug": "meshcam",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.getmeshcam.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "MeshCam uses Bluetooth to find nearby cameras and set them up.",
+        "NSLocalNetworkUsageDescription": "MeshCam talks to a camera over its own WiFi network to pull photos and show live view."
+      }
+    },
+    "android": {
+      "package": "com.getmeshcam.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#101613",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true
+        }
+      ]
+    ]
+  }
+}

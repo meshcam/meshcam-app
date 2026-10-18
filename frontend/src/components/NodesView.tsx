@@ -210,6 +210,12 @@ export default function NodesView({ sites, nodeId, demo, onUnauthorized }: Nodes
           onRenamed={(id, name) =>
             setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, name } : n)))
           }
+          onMerged={(keptId) => {
+            // The open node's row was absorbed and deleted — refetch, and follow
+            // the history to the row that survived rather than closing on a 404.
+            load()
+            navigate(nodeUrl(keptId), { replace: true })
+          }}
         />
       )}
     </main>

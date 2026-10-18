@@ -29,6 +29,12 @@ export interface Camera {
   /** Node position for the survey map (the gateway's is the map anchor). */
   lat: number | null
   lon: number | null
+  /**
+   * Retired slugs that still resolve to this node: the record of a merge after
+   * a board lost its RNS identity and came back under a new name.
+   * Empty on every node that has never been re-identified, which is most.
+   */
+  aliases: string[]
 }
 
 export interface PhotoMeta {
@@ -199,6 +205,26 @@ export interface NodeHealth {
   health: NodeHealthCounters | null
   /** push_fails climbed recently: capturing fine, but pushes are failing (bug 5). */
   push_failing: boolean
+  /**
+   * Full-res store state, as the node last reported it (leaf-0.17.6).
+   * null means the node never said, which covers BOTH a healthy card and any leaf
+   * older than 0.17.6 — never render null as "ok".
+   * 'unreadable' is the actionable one: a card is in there and the node cannot mount
+   * it, nearly always a >32 GB card still exFAT from the factory. That is what the
+   * format_card command fixes.
+   */
+  storage_state: 'no_card' | 'unreadable' | 'unknown' | null
+  /**
+   * This node came back under a new RNS identity and its history is still split
+   *: the slug it says it used to announce under. Taken from the newest
+   * beat that carried it, not from `latest` — the leaf only tags a short burst of
+   * announces after the change. null once a merge in either direction has put the
+   * two rows back together, and on every node that never lost an identity.
+   */
+  prev_node: string | null
+  /** The node still holding that slug's half of the history — the merge target.
+   *  null when nothing answers to the slug any more. */
+  prev_node_id: string | null
 }
 
 export interface TelemetryPoint {
@@ -222,7 +248,11 @@ export type FullRequestStatus =
   | 'failed'
   | 'expired'
 
-export type NodeCommandKind = 'maintenance' | 'sleep' | 'update_firmware'
+export type NodeCommandKind =
+  | 'maintenance'
+  | 'sleep'
+  | 'update_firmware'
+  | 'format_card'
 
 export interface NodeCommand {
   id: number

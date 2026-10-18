@@ -11,7 +11,16 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import Scope
 
 from trailcam import auth
-from trailcam.api import cameras, commands, ingest, photos, probes, stream, telemetry
+from trailcam.api import (
+    cameras,
+    commands,
+    ingest,
+    photos,
+    probes,
+    provision,
+    stream,
+    telemetry,
+)
 from trailcam.api import settings as settings_api
 from trailcam.config import get_settings
 from trailcam.db import get_engine
@@ -118,6 +127,10 @@ def create_app() -> FastAPI:
     app.include_router(probes.router)
     app.include_router(stream.router)
     app.include_router(settings_api.router)
+    # Off unless TRAILCAM_PROVISION_KEY is set — the router still mounts, and
+    # its key dependency 404s every route, so a disabled instance and an
+    # instance without the feature look identical from outside.
+    app.include_router(provision.router)
 
     @app.get("/healthz")
     async def healthz():

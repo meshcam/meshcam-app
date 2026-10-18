@@ -39,8 +39,8 @@ SSE_KEEPALIVE_S = 25
 #      protocol) -> no new ingest ever fires, so the command never completes.
 # Redelivery is cheap now precisely because of the dedup protocol: a re-asked leaf
 # either skips outright or resumes only the missing chunks.
-FETCH_RETRY_AFTER = timedelta(minutes=15)   # leaf silence before a redelivery
-FETCH_RETRY_MAX = 3                         # redeliveries before giving up
+FETCH_RETRY_AFTER = timedelta(minutes=15)  # leaf silence before a redelivery
+FETCH_RETRY_MAX = 3  # redeliveries before giving up
 
 
 def _command_out(c: Command) -> CommandOut:
@@ -48,7 +48,9 @@ def _command_out(c: Command) -> CommandOut:
         id=c.id,
         kind=c.kind,
         site=c.camera.site.slug,
-        node=c.camera.slug,
+        # The name the node actually answers to, which after a merge is not the kept
+        # row's slug. Falls back to slug for a camera never yet heard from.
+        node=c.camera.last_wire_slug or c.camera.slug,
         event_id=c.event_id,
         payload=c.payload,
         status=c.status,
@@ -98,9 +100,7 @@ async def _fetch_outstanding(session: AsyncSession, only_pending: bool = False) 
     received = list(
         (
             await session.scalars(
-                select(Command).where(
-                    Command.kind == "fetch_full", Command.status == "received"
-                )
+                select(Command).where(Command.kind == "fetch_full", Command.status == "received")
             )
         ).all()
     )
@@ -109,9 +109,7 @@ async def _fetch_outstanding(session: AsyncSession, only_pending: bool = False) 
         have_full: set[str] = set()
         if eids:
             rows = await session.scalars(
-                select(Photo.event_id).where(
-                    Photo.event_id.in_(eids), Photo.full_key.is_not(None)
-                )
+                select(Photo.event_id).where(Photo.event_id.in_(eids), Photo.full_key.is_not(None))
             )
             have_full = set(rows.all())
         dirty = False

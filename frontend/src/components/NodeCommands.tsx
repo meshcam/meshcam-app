@@ -1,4 +1,4 @@
-import { Cpu, Moon, RefreshCw, Wrench } from 'lucide-react'
+import { Cpu, HardDrive, Moon, RefreshCw, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import { UnauthorizedError } from '../api'
@@ -15,6 +15,7 @@ const KIND_LABELS: Record<string, string> = {
   maintenance: 'Maintenance mode',
   sleep: 'Sleep',
   update_firmware: 'Firmware update',
+  format_card: 'Erase and format the card',
 }
 
 /**
@@ -29,6 +30,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<'maintenance' | 'update_firmware' | null>(null)
   const [confirmingSleep, setConfirmingSleep] = useState(false)
+  const [confirmingFormat, setConfirmingFormat] = useState(false)
   const [busy, setBusy] = useState(false)
 
   // Maintenance form
@@ -57,6 +59,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
   useEffect(() => {
     setForm(null)
     setConfirmingSleep(false)
+    setConfirmingFormat(false)
     load()
   }, [load])
 
@@ -68,6 +71,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
         await api.queueNodeCommand(node.id, kind, payload)
         setForm(null)
         setConfirmingSleep(false)
+        setConfirmingFormat(false)
         load()
       } catch (err: unknown) {
         if (err instanceof UnauthorizedError) onUnauthorized()
@@ -120,6 +124,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
           onClick={() => {
             setForm(form === 'maintenance' ? null : 'maintenance')
             setConfirmingSleep(false)
+            setConfirmingFormat(false)
           }}
         >
           <Wrench size={15} aria-hidden="true" />
@@ -154,6 +159,7 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
             onClick={() => {
               setConfirmingSleep(true)
               setForm(null)
+              setConfirmingFormat(false)
             }}
           >
             <Moon size={15} aria-hidden="true" />
@@ -167,11 +173,60 @@ export default function NodeCommands({ node, onUnauthorized }: NodeCommandsProps
           onClick={() => {
             setForm(form === 'update_firmware' ? null : 'update_firmware')
             setConfirmingSleep(false)
+            setConfirmingFormat(false)
           }}
         >
           <Cpu size={15} aria-hidden="true" />
           Firmware…
         </button>
+        {/*
+          Only offered when the node has actually reported a card it cannot read
+         . Deliberately not a always-available button: this is the one
+          command that destroys data, and there is no reason to offer it against a
+          camera whose card is fine. The node refuses anyway, but the UI should not
+          be inviting people to try.
+        */}
+        {node.storage_state === 'unreadable' &&
+          (confirmingFormat ? (
+            <span className="confirm-group">
+              <span className="confirm-text">
+                Erase everything on this card and format it FAT32? Anything still on it
+                is gone. If it might hold photos, read it on a computer first.
+              </span>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={busy}
+                onClick={() => void queue('format_card', { confirm: 'erase' })}
+              >
+                <HardDrive size={15} aria-hidden="true" />
+                Erase and format
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => setConfirmingFormat(false)}
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              title="This node reports a card it cannot read. Cards over 32 GB ship formatted exFAT, which the camera can't mount; formatting it FAT32 fixes that and erases the card."
+              onClick={() => {
+                setConfirmingFormat(true)
+                setForm(null)
+                setConfirmingSleep(false)
+              }}
+            >
+              <HardDrive size={15} aria-hidden="true" />
+              Format card…
+            </button>
+          ))}
       </div>
 
       {form === 'maintenance' && (

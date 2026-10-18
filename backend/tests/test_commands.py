@@ -313,6 +313,72 @@ async def test_node_command_history_redacts_psk(client, device_token):
     assert [c["kind"] for c in history] == ["fetch_full", "maintenance"]
 
 
+# --- unreadable card: surfacing it, and the consent-gated format --------------------------
+# The leaf reports its store state on every announce as "sd=<code>" and the gateway
+# forwards it as telemetry extra.sd. The field is ABSENT on a healthy card, which is also
+# what every leaf older than 0.17.6 sends — so absent must read as "not reported", never
+# as "ok", or the UI would claim a card is fine on firmware that cannot even tell.
+
+
+async def _beat(client, token, extra):
+    return await client.post(
+        "/api/v1/telemetry",
+        json={"site": "north40", "node": "c3-back-of-lake", "extra": extra},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+async def _node(client):
+    return (await client.get("/api/v1/nodes/health")).json()[0]
+
+
+async def test_storage_state_absent_is_not_ok(client, device_token):
+    await ingest(client, device_token)
+    await _beat(client, device_token, {"status": "checkin", "via": "mesh"})
+    assert (await _node(client))["storage_state"] is None
+
+
+async def test_storage_state_maps_the_leaf_codes(client, device_token):
+    await ingest(client, device_token)
+    for code, expected in (("u", "unreadable"), ("n", "no_card"), ("?", "unknown")):
+        await _beat(client, device_token, {"status": "checkin", "sd": code})
+        assert (await _node(client))["storage_state"] == expected, code
+
+
+async def test_storage_state_unknown_code_does_not_crash(client, device_token):
+    # Forward compat: a future leaf inventing a code must degrade, not 500.
+    await ingest(client, device_token)
+    await _beat(client, device_token, {"status": "checkin", "sd": "z"})
+    assert (await _node(client))["storage_state"] == "unknown"
+
+
+async def test_format_card_command_queues_with_confirm(client, device_token):
+    await ingest(client, device_token)
+    await _beat(client, device_token, {"status": "checkin", "sd": "u"})
+    node_id = (await _node(client))["id"]
+
+    r = await client.post(
+        f"/api/v1/nodes/{node_id}/commands",
+        json={"kind": "format_card", "payload": {"confirm": "erase"}},
+    )
+    assert r.status_code == 202, r.text
+
+    history = (await client.get(f"/api/v1/nodes/{node_id}/commands")).json()
+    assert history[0]["kind"] == "format_card"
+    # The confirm token has to survive to the node: the firmware drops the command
+    # without it, so redacting or dropping it here would silently break the feature.
+    assert history[0]["payload"] == {"confirm": "erase"}
+
+
+async def test_unknown_command_kind_is_rejected(client, device_token):
+    await ingest(client, device_token)
+    node_id = (await _node(client))["id"]
+    r = await client.post(
+        f"/api/v1/nodes/{node_id}/commands", json={"kind": "format_disk"}
+    )
+    assert r.status_code == 422
+
+
 # --- received-fetch_full recovery (2026-07-19) -----------------------------------------
 # Air-verified orphans (trailcam-dev commands 80/81, 2026-07-18): a receipt-acked
 # fetch_full whose transfer aborts is never redelivered, and a dedup-skipped send

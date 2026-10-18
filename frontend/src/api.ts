@@ -112,6 +112,36 @@ export function patchCamera(id: string, patch: CameraPatch): Promise<Camera> {
   })
 }
 
+/** What a merge actually moved — enough to show the operator it did something. */
+export interface CameraMerge {
+  camera: Camera
+  merged_slug: string
+  aliased: boolean
+  photos: number
+  telemetry: number
+  probes: number
+  commands: number
+  sightings: number
+}
+
+/**
+ * Fold a duplicate node row into `keepId`: the source's photos,
+ * telemetry, probes and commands move across, its slug is kept as an alias so
+ * the board's next heartbeat does not re-create it, and the source row is
+ * deleted. `source` is a node id or a bare slug within the same site.
+ */
+export function mergeCamera(
+  keepId: string,
+  source: string,
+  note?: string,
+): Promise<CameraMerge> {
+  return request<CameraMerge>(`/api/v1/cameras/${encodeURIComponent(keepId)}/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, note }),
+  })
+}
+
 export function getDeviceTokens(): Promise<DeviceToken[]> {
   return request<DeviceToken[]>('/api/v1/device-tokens')
 }

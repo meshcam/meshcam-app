@@ -30,6 +30,43 @@ class CameraOut(BaseModel):
     # Node position for the survey map (the gateway's is the map anchor).
     lat: float | None = None
     lon: float | None = None
+    # Retired slugs that still resolve here — the record of a merge.
+    # Empty on every node that has never been re-identified, which is most.
+    aliases: list[str] = []
+
+
+class CameraAliasOut(BaseModel):
+    slug: str
+    created_at: datetime
+    note: str | None = None
+
+
+class CameraMergeIn(BaseModel):
+    """Fold a duplicate node row into this one.
+
+    `source` is the row to absorb: a camera UUID ref, or a bare slug in the
+    same site (which is what a leaf reports and what the gateway logs, so it
+    is the id a human actually has to hand after a re-identification)."""
+
+    source: str
+    # Keep answering to the source's slug after the merge. On by default
+    # because the usual cause is a board that now announces under a new
+    # identity and will keep doing so — without the alias its next heartbeat
+    # re-creates the row this call just removed.
+    alias: bool = True
+    note: str | None = None
+
+
+class CameraMergeOut(BaseModel):
+    camera: CameraOut
+    merged_slug: str
+    aliased: bool
+    # What actually moved, so the caller can see the merge did something.
+    photos: int
+    telemetry: int
+    probes: int
+    commands: int
+    sightings: int
 
 
 class CameraPatch(BaseModel):
@@ -239,6 +276,17 @@ class NodeHealthCounters(BaseModel):
     battery_v: float | None = None
 
 
+# Leaf full-res store state, carried on every announce as "sd=<code>" (leaf-0.17.6)
+# and forwarded by the gateway as telemetry extra.sd. The field is ABSENT on a
+# healthy card, so absence is not "ok" — it is also what every pre-0.17.6 leaf sends.
+# That is why the model below uses None for "not reported" and never invents "ok".
+STORAGE_STATE_BY_CODE = {
+    "n": "no_card",  # no card answered; the node is on its small internal ring
+    "u": "unreadable",  # a card IS present and its filesystem will not mount
+    "?": "unknown",  # degraded, but this backend can't separate the two causes
+}
+
+
 class NodeHealth(BaseModel):
     id: uuid.UUID
     slug: str
@@ -254,6 +302,22 @@ class NodeHealth(BaseModel):
     # but its pushes are failing — the exact failure mode that looked like a "quiet
     # cam" for 21 h on 07-15 (bug 5).
     push_failing: bool = False
+    # Full-res store state as last reported. None = the node never said, which
+    # covers both a healthy card and any leaf older than 0.17.6 — do NOT render None as
+    # "ok". "unreadable" is the actionable one: a card is in there and the node cannot
+    # mount it, which is almost always a >32 GB card still formatted exFAT from the
+    # factory, and is what the format_card command exists to fix.
+    storage_state: Literal["no_card", "unreadable", "unknown"] | None = None
+    # This node came back under a new RNS identity and its history is still split
+    #: the slug it says it used to announce under, taken from the newest
+    # beat that carried extra.prev_node — not from `latest`, because the leaf tags
+    # only a short burst of announces after the change. None once a merge in
+    # either direction has reunited the two rows, and on every node that never
+    # lost an identity. See identity.py for both rules.
+    prev_node: str | None = None
+    # The camera row still holding that slug's half of the history, when one
+    # answers to it — the merge target. None when nothing does.
+    prev_node_id: uuid.UUID | None = None
 
 
 class TelemetryPoint(BaseModel):
@@ -303,9 +367,15 @@ class NodeCommandIn(BaseModel):
     {"ssid", "psk", "url", "sha256"} — the node streams the image into its idle
     OTA slot and verifies the sha before committing. Note the payload (psk
     included) is stored in the commands table and travels the mesh inside the
-    encrypted command packet."""
+    encrypted command packet.
 
-    kind: Literal["maintenance", "sleep", "update_firmware"]
+    format_card payload: {"confirm": "erase"} — REQUIRED, and the firmware drops the
+    command without it. This is the only command that destroys data. It is safe to
+    queue anyway: the leaf refuses to format any card it can actually read, so the
+    worst it can do is finish the job on a card already reporting storage_state
+    "unreadable"."""
+
+    kind: Literal["maintenance", "sleep", "update_firmware", "format_card"]
     payload: dict | None = None
 
 
@@ -324,6 +394,23 @@ class DeviceTokenCreatedOut(DeviceTokenOut):
     """POST response — the only time the plaintext token ever leaves the server."""
 
     token: str
+
+
+class ProvisionTokenIn(BaseModel):
+    """Machine mint request (/api/v1/provision/device-tokens).
+
+    `name` is the gateway's machine id (`gw-<8hex>`, node-identity.md), not a
+    human name — the customer renames the node in the UI afterwards.
+    `site_slug` pre-creates the site and the gateway node so the account shows
+    the unit the moment it is claimed, instead of staying empty until the first
+    beat lands. `replace` is what makes a re-claim work: the same gateway
+    claiming again supersedes its own token rather than colliding on the unique
+    name.
+    """
+
+    name: str
+    site_slug: str | None = None
+    replace: bool = False
 
 
 class RetentionStats(BaseModel):
